@@ -3,6 +3,7 @@
 @inject IDbContextFactory<FraternityDb> DbFactory
 @inject AuthenticationStateProvider Authentication
 @inject NavigationManager Navigation
+@inject MemberAccessService MemberAccess
 
 <PageTitle>Calendar | Fraternitas</PageTitle>
 <div class="page-head">
@@ -155,8 +156,10 @@
     private async Task AppointmentMoved(SchedulerAppointmentMoveEventArgs args)
     {
         var moved = args.Appointment?.Data as CalendarEvent;
-        if (!isAdmin || moved is null)
+        if (!isAdmin || moved is null
+            || !await MemberAccess.IsAdministratorAsync((await Authentication.GetAuthenticationStateAsync()).User))
         {
+            error = "Administrator access is required to move an event. Sign in again if your role has changed.";
             if (scheduler is not null) await scheduler.Reload();
             return;
         }
@@ -176,6 +179,11 @@
     {
         if (!isAdmin) return;
         error = "";
+        if (!await MemberAccess.IsAdministratorAsync((await Authentication.GetAuthenticationStateAsync()).User))
+        {
+            error = "Administrator access is required. Sign in again if your role has changed.";
+            return;
+        }
         if (string.IsNullOrWhiteSpace(draft.Title) || draft.Title.Length > 150
             || draft.EndLocal <= draft.StartLocal)
         {
@@ -215,6 +223,11 @@
     private async Task DeleteEvent()
     {
         if (!isAdmin || !draft.Id.HasValue) return;
+        if (!await MemberAccess.IsAdministratorAsync((await Authentication.GetAuthenticationStateAsync()).User))
+        {
+            error = "Administrator access is required. Sign in again if your role has changed.";
+            return;
+        }
         await using var db = await DbFactory.CreateDbContextAsync();
         var ev = await db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == draft.Id.Value && e.GroupId == 1);
         if (ev is not null)
