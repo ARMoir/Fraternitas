@@ -73,6 +73,12 @@ jobs:
           curl --silent --fail -b "$RUNNER_TEMP/cookies.txt" \
             "http://127.0.0.1:5088/" -o "$RUNNER_TEMP/home.html"
           grep -q "Grow in faith" "$RUNNER_TEMP/home.html"
+          # Catch missing Radzen CSS, which would leave the scheduler unstyled and icons as text.
+          grep -q "_content/Radzen.Blazor/css/material-base.css" "$RUNNER_TEMP/home.html"
+          curl --silent --show-error --fail "http://127.0.0.1:5088/_content/Radzen.Blazor/css/material-base.css" \
+            -o "$RUNNER_TEMP/radzen-material.css"
+          test -s "$RUNNER_TEMP/radzen-material.css"
+          echo "Radzen Material stylesheet served successfully"
           echo "Authenticated dashboard loaded"
           for page in calendar readings discussions documents admin; do
             curl --silent --fail -b "$RUNNER_TEMP/cookies.txt" \
