@@ -129,7 +129,7 @@ public static class AdventCalendarSeeder
 
                     Practice the daily Ignatian Examen: reflect on where you recognized God working in your day, where you felt distant, and how you responded.
 
-                    For asceticism, switch off your phone when it isn't needed for work or ministry, or choose a consistent alternative such as giving up TV.
+                    Daily digital asceticism: turn off your phone whenever it isn't required for work or ministry. Giving up TV instead is an acceptable alternative agreed by the group.
 
                     Choose your own time for these personal practices. No compliance or completion tracking.
                     """
