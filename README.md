@@ -24,27 +24,35 @@ Built with **.NET 10 Blazor Web App (Interactive Server)**, **Radzen Scheduler**
 
 Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 
-Use a private initial admin password of at least 12 characters. On first startup, Fraternitas creates that admin account; it will **not** reset an existing admin password on subsequent runs. The data directory is excluded from Git.
+### First launch in Visual Studio
 
-**PowerShell:**
+1. Open Fraternitas in Visual Studio and press **F5** using the **Fraternitas** launch profile.
+2. The browser automatically opens **/account/setup** if the database contains no users.
+3. Enter your name, email and a **new password of at least 12 characters**; click **Create administrator**.
+4. You are signed in as an Admin. Create member invitations from the **Admin** page.
+
+**No environment variables, preset credentials or database deletion are required on first launch.**
+The first-run web wizard works only in **Development on localhost** and is disabled once any account exists. Production setup uses the local terminal command below.
+
+### Recover access to an existing database
+
+Stop the running app (**Shift+F5** in Visual Studio), open PowerShell in the repository root and run:
 
 ```powershell
-$env:FRATERNITAS_ADMIN_EMAIL = "you@example.com"
-$env:FRATERNITAS_ADMIN_PASSWORD = "replace-with-a-long-unique-password"
-dotnet run --project Fraternitas/Fraternitas.csproj
+dotnet run --project .\Fraternitas\Fraternitas.csproj -- admin-setup
 ```
 
-**macOS/Linux:**
+Enter your email and a new password when prompted. For an existing user, the command resets the password, clears lockout and grants Admin access. For a new email, it creates a new Admin account. **It never deletes your events, discussions or uploads.** Start Fraternitas normally again and sign in.
 
-```bash
-export FRATERNITAS_ADMIN_EMAIL="you@example.com"
-export FRATERNITAS_ADMIN_PASSWORD="replace-with-a-long-unique-password"
-dotnet run --project Fraternitas/Fraternitas.csproj
+To start without Visual Studio:
+
+```powershell
+dotnet run --project .\Fraternitas\Fraternitas.csproj
 ```
 
-Open the URL printed by `dotnet run`, then go to `/account/login`.
+The previous `FRATERNITAS_ADMIN_EMAIL` and `FRATERNITAS_ADMIN_PASSWORD` bootstrap variables are no longer used. Never commit credentials to `launchSettings.json`.
 
-The app creates `Fraternitas/App_Data/fraternitas.db` and `Fraternitas/App_Data/documents/` by default (relative to the application's content root). Set `FRATERNITAS_DATA_DIR` to an absolute path on **persistent private storage** when hosting. Back up the database and document directory together.
+The app creates `Fraternitas/App_Data/fraternitas.db` and `Fraternitas/App_Data/documents/` by default. In local Debug/Release builds these paths are resolved relative to the project directory, regardless of terminal working directory. Set `FRATERNITAS_DATA_DIR` to an absolute path on **persistent private storage** when hosting. Back up the database and document directory together.
 
 To invite members, sign in as the administrator, go to **Admin**, generate a link, and send it privately. The full invitation secret is displayed once; only its hash is saved.
 
@@ -53,7 +61,8 @@ To invite members, sign in as the administrator, go to **Admin**, generate a lin
 - The GitHub repository is public; **group content is not in the repository**. Store no real member contact information, prayers, or PDFs in code or seed files.
 - Calendar, readings, discussions and uploads are protected by authenticated routes. Downloads are protected endpoints, not public static paths.
 - Only admins can modify the calendar or create member invitations.
-- Passwords are hashed using ASP.NET Core Identity. Authentication requests and sign-out use antiforgery validation.
+- Passwords are hashed using ASP.NET Core Identity. Authentication requests, first-run setup and sign-out use antiforgery validation.
+- The admin web setup is available only from loopback in Development before the first user exists; existing admin recovery requires local terminal access.
 - Invite URLs are secret, single-use, and expire after seven days. Email addresses are not independently verified in this MVP.
 - Uploads are stored outside `wwwroot`, with randomized storage names, extension allowlisting and a 10 MB limit. This is not an antivirus or content-scanning service.
 - **Use HTTPS and secure cookie settings in production.** Do not expose a local HTTP development instance on the public internet.
