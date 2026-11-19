@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <base href="/" />
     <title>Fraternitas</title>
-    <RadzenTheme Theme="material3" />
+    <!-- Use the bundled free Material stylesheet so scheduler layout and icon fonts are available on first paint. -->
+    <link rel="stylesheet" href="_content/Radzen.Blazor/css/material-base.css" />
     <link rel="stylesheet" href="app.css" />
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
