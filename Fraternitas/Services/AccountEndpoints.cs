@@ -10,10 +10,100 @@ namespace Fraternitas.Services;
 
 public static class AccountEndpoints
 {
+    private static readonly SemaphoreSlim SetupGate = new(1, 1);
+
     public static void MapAccountEndpoints(this WebApplication app)
     {
-        app.MapGet("/account/login", (HttpContext ctx, IAntiforgery csrf) =>
+        // First-run setup is deliberately LOCAL and DEVELOPMENT ONLY.
+        // A remotely accessible, unauthenticated "claim administrator" page
+        // would allow the first visitor to take ownership of a new installation.
+        app.MapGet("/account/setup", async (HttpContext ctx, IAntiforgery csrf,
+            FraternityDb db, IWebHostEnvironment environment) =>
         {
+            ctx.Response.Headers.CacheControl = "no-store";
+            if (!AdminSetup.IsLocalDevelopmentRequest(ctx, environment))
+                return Results.NotFound();
+            if (await db.Users.AnyAsync())
+                return Results.Redirect("/account/login");
+
+            var token = WebUtility.HtmlEncode(csrf.GetAndStoreTokens(ctx).RequestToken ?? "");
+            var error = ctx.Request.Query.ContainsKey("error")
+                ? "<p class='error'>Check your email and make sure both passwords match (12+ characters). Try again.</p>"
+                : "";
+            var form = $"""
+                <h1>Set up Fraternitas</h1>
+                <p>Welcome! Create your administrator account to get started.</p>{error}
+                <form method="post" action="/account/setup">
+                  <input type="hidden" name="__RequestVerificationToken" value="{token}">
+                  <label>Your name<input name="name" maxlength="100" autocomplete="name" required></label>
+                  <label>Email<input name="email" type="email" maxlength="256" autocomplete="username" required></label>
+                  <label>Password (12+ characters)<input name="password" type="password"
+                    minlength="12" autocomplete="new-password" required></label>
+                  <label>Confirm password<input name="confirm" type="password"
+                    minlength="12" autocomplete="new-password" required></label>
+                  <button type="submit">Create administrator</button>
+                </form>
+                <p class="muted">Only available on localhost in Development mode. No preset password is used.</p>
+                """;
+            return Results.Content(Page("First-run setup", form), "text/html");
+        }).AllowAnonymous();
+
+        app.MapPost("/account/setup", async (HttpContext ctx, IAntiforgery csrf,
+            FraternityDb db, IWebHostEnvironment environment,
+            UserManager<Member> users, SignInManager<Member> signIn) =>
+        {
+            if (!AdminSetup.IsLocalDevelopmentRequest(ctx, environment))
+                return Results.NotFound();
+            if (!await ValidForm(ctx, csrf)) return Results.BadRequest("Invalid request.");
+
+            await SetupGate.WaitAsync();
+            try
+            {
+                // Disable setup forever after the first account exists.
+                if (await db.Users.AnyAsync()) return Results.Redirect("/account/login");
+
+                var form = await ctx.Request.ReadFormAsync();
+                var email = form["email"].ToString().Trim();
+                var name = form["name"].ToString().Trim();
+                var password = form["password"].ToString();
+                var confirmation = form["confirm"].ToString();
+                if (!AdminSetup.ValidEmail(email) || name.Length is < 1 or > 100
+                    || password.Length < 12 || password != confirmation)
+                    return Results.Redirect("/account/setup?error=1");
+
+                var member = new Member
+                {
+                    UserName = email, Email = email, EmailConfirmed = true,
+                    DisplayName = name, GroupId = 1
+                };
+                var result = await users.CreateAsync(member, password);
+                if (!result.Succeeded)
+                    return Results.Redirect("/account/setup?error=1");
+
+                foreach (var role in new[] { "Admin", "Member" })
+                {
+                    result = await users.AddToRoleAsync(member, role);
+                    if (!result.Succeeded)
+                    {
+                        await users.DeleteAsync(member);
+                        return Results.Problem("Could not finish setting up the administrator.");
+                    }
+                }
+                await signIn.SignInAsync(member, isPersistent: false);
+                return Results.Redirect("/");
+            }
+            finally
+            {
+                SetupGate.Release();
+            }
+        }).AllowAnonymous();
+
+        app.MapGet("/account/login", async (HttpContext ctx, IAntiforgery csrf,
+            FraternityDb db, IWebHostEnvironment environment) =>
+        {
+            if (AdminSetup.IsLocalDevelopmentRequest(ctx, environment)
+                && !await db.Users.AnyAsync())
+                return Results.Redirect("/account/setup");
             var token = WebUtility.HtmlEncode(csrf.GetAndStoreTokens(ctx).RequestToken ?? "");
             var returnUrl = WebUtility.HtmlEncode(ctx.Request.Query["returnUrl"].ToString());
             var error = ctx.Request.Query.ContainsKey("error") ? "<p class='error'>Invalid credentials or account temporarily locked.</p>" : "";
