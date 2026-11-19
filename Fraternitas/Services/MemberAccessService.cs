@@ -36,6 +36,23 @@ public sealed class MemberAccessService(IServiceScopeFactory scopes)
         return result;
     }
 
+    public async Task<bool> IsAdministratorAsync(ClaimsPrincipal principal)
+    {
+        if (!principal.IsInRole("Admin")) return false;
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId)) return false;
+
+        using var scope = scopes.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<Member>>();
+        var user = await users.FindByIdAsync(userId);
+        if (user is null || user.GroupId != 1
+            || !await users.IsInRoleAsync(user, "Admin"))
+            return false;
+
+        return !(await users.GetClaimsAsync(user)).Any(c =>
+            c.Type == MemberOnlyClaimType && c.Value == "true");
+    }
+
     public async Task SetMemberOnlyAsync(ClaimsPrincipal actor, string userId, bool memberOnly)
     {
         using var scope = scopes.CreateScope();
