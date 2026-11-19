@@ -74,11 +74,11 @@ jobs:
           curl --silent --fail -b "$RUNNER_TEMP/cookies.txt" \
             "http://127.0.0.1:5088/" -o "$RUNNER_TEMP/home.html"
           grep -q "Grow in faith" "$RUNNER_TEMP/home.html"
-          # Home dashboard reflects the selected calendar week, not just meetings.
-          grep -q "Week at a glance" "$RUNNER_TEMP/home.html"
-          grep -q "Previous week" "$RUNNER_TEMP/home.html"
-          grep -q "Next week" "$RUNNER_TEMP/home.html"
-          grep -q "daily prayer, Examen" "$RUNNER_TEMP/home.html"
+          # Home has one simple weekly event list and a full calendar link.
+          grep -q "On the calendar" "$RUNNER_TEMP/home.html"
+          grep -q "Full calendar" "$RUNNER_TEMP/home.html"
+          ! grep -q "Previous week" "$RUNNER_TEMP/home.html"
+          ! grep -q "Next week" "$RUNNER_TEMP/home.html"
           ! grep -q "Upcoming gatherings" "$RUNNER_TEMP/home.html"
           # Catch missing Radzen CSS, which would leave the scheduler unstyled and icons as text.
           grep -q "_content/Radzen.Blazor/css/material-base.css" "$RUNNER_TEMP/home.html"
