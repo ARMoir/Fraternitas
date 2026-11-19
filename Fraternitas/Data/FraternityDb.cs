@@ -59,6 +59,7 @@ public static class DatabaseSetup
         }
 
         await db.SaveChangesAsync();
+        await AdventCalendarSeeder.SeedAsync(db, logger);
 
         var roles = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<Microsoft.AspNetCore.Identity.IdentityRole>>();
         foreach (var role in new[] { "Admin", "Member" })
