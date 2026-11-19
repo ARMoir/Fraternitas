@@ -12,7 +12,14 @@ else
     <div class="page-head">
         <div class="eyebrow">@ev.Category.ToUpperInvariant()</div>
         <h1>@ev.Title</h1>
-        <p>@ev.StartLocal.ToString("dddd, MMMM d, yyyy · h:mm tt") – @ev.EndLocal.ToString("h:mm tt") Eastern</p>
+        @if (ev.StartLocal.TimeOfDay == TimeSpan.Zero && ev.EndLocal == ev.StartLocal.Date.AddDays(1))
+        {
+            <p>@ev.StartLocal.ToString("dddd, MMMM d, yyyy") · All-day observance</p>
+        }
+        else
+        {
+            <p>@ev.StartLocal.ToString("dddd, MMMM d, yyyy · h:mm tt") – @ev.EndLocal.ToString("h:mm tt") Eastern</p>
+        }
         <div class="button-row">
             <a class="action" href="@($"/events/{ev.Id}/calendar.ics")">Add to my calendar</a>
             @if (!string.IsNullOrWhiteSpace(ev.MeetingUrl))
@@ -33,7 +40,10 @@ else
                 <p>Read three times: What stands out? What deeper meaning emerges? How will you respond?</p>
                 <a href="/readings">View the reading guide</a>
             }
-            <p class="muted">Close with one decade of the Rosary.</p>
+            @if (ev.Category == "Meeting")
+            {
+                <p class="muted">Close with one decade of the Rosary.</p>
+            }
         </section>
         <section class="panel">
             <h2>Event documents</h2>
