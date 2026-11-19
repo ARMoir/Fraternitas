@@ -16,16 +16,35 @@
 
 <div class="dashboard-grid">
     <section class="panel">
-        <div class="section-head"><h2>Upcoming gatherings</h2><a href="/calendar">Full calendar</a></div>
-        @if (upcoming.Count == 0)
+        <div class="section-head">
+            <h2>Week at a glance</h2>
+            <a href="/calendar">Full calendar</a>
+        </div>
+        <div class="week-controls">
+            <button type="button" class="week-arrow" @onclick="PreviousWeek" aria-label="Previous week" title="Previous week">‹</button>
+            <div class="week-range">
+                <strong>@weekStart.ToString("MMM d") – @weekStart.AddDays(6).ToString("MMM d, yyyy")</strong>
+                <small>Monday–Sunday · Eastern Time</small>
+            </div>
+            <button type="button" class="week-arrow" @onclick="NextWeek" aria-label="Next week" title="Next week">›</button>
+            <button type="button" class="week-today" @onclick="ThisWeek">This week</button>
+        </div>
+        <label class="calendar-toggle">
+            <input type="checkbox" checked="@showDailyPrayer" @onchange="ToggleDailyPrayer" />
+            Include daily prayer, Examen &amp; screen-time reminders
+        </label>
+        @if (visibleEvents.Count == 0)
         {
-            <p class="muted">No meetings have been scheduled yet. An administrator can add confirmed dates on the calendar.</p>
+            <p class="muted">No calendar events scheduled for this week.</p>
         }
-        @foreach (var ev in upcoming)
+        @foreach (var ev in visibleEvents)
         {
             <a class="event-row" href="@($"/events/{ev.Id}")">
                 <span class="date-tile"><strong>@ev.StartLocal.ToString("dd")</strong><small>@ev.StartLocal.ToString("MMM")</small></span>
-                <span><strong>@ev.Title</strong><small>@ev.StartLocal.ToString("ddd, h:mm tt") ET · @ev.Category</small></span>
+                <span>
+                    <strong>@ev.Title</strong>
+                    <small>@ev.StartLocal.ToString("ddd") · @(ev.StartLocal.TimeOfDay == TimeSpan.Zero && ev.EndLocal == ev.StartLocal.Date.AddDays(1) ? "All day" : ev.StartLocal.ToString("h:mm tt") + " ET") · @ev.Category</small>
+                </span>
             </a>
         }
     </section>
@@ -67,20 +86,74 @@
 </div>
 
 @code {
-    private List<CalendarEvent> upcoming = [];
+    private List<CalendarEvent> weekEvents = [];
+    private List<CalendarEvent> visibleEvents => showDailyPrayer
+        ? weekEvents
+        : weekEvents.Where(e => e.Category != "Prayer" || e.Title != "Daily prayer & Examen").ToList();
+    private bool showDailyPrayer;
+    private DateTime weekStart;
     private List<Reading> readings = [];
     private List<Discussion> discussions = [];
 
+    private static DateTime StartOfWeek(DateTime date) =>
+        date.Date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
+
     protected override async Task OnInitializedAsync()
     {
+        weekStart = StartOfWeek(GroupClock.Now);
         await using var db = await DbFactory.CreateDbContextAsync();
-        var today = GroupClock.Now.Date;
-        upcoming = await db.CalendarEvents.AsNoTracking()
-            .Where(e => e.GroupId == 1 && e.EndLocal >= today && (e.Category == "Meeting" || e.Category == "Fellowship"))
-            .OrderBy(e => e.StartLocal).Take(5).ToListAsync();
         readings = await db.Readings.AsNoTracking().OrderBy(r => r.Week).ToListAsync();
         discussions = await db.Discussions.AsNoTracking().Include(p => p.Author)
             .Where(p => p.GroupId == 1).OrderByDescending(p => p.CreatedUtc)
             .Take(5).ToListAsync();
+
+        await LoadWeekAsync();
+        // When the current week has no visible events, show the next scheduled week.
+        // This keeps the approaching Monday gathering visible before Advent begins.
+        if (visibleEvents.Count == 0)
+        {
+            var next = await db.CalendarEvents.AsNoTracking()
+                .Where(e => e.GroupId == 1 && e.StartLocal >= weekStart.AddDays(7)
+                    && (e.Category != "Prayer" || e.Title != "Daily prayer & Examen"))
+                .OrderBy(e => e.StartLocal)
+                .Select(e => (DateTime?)e.StartLocal)
+                .FirstOrDefaultAsync();
+            if (next.HasValue)
+            {
+                weekStart = StartOfWeek(next.Value);
+                await LoadWeekAsync();
+            }
+        }
     }
+
+    private async Task LoadWeekAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var end = weekStart.AddDays(7);
+        weekEvents = await db.CalendarEvents.AsNoTracking()
+            .Where(e => e.GroupId == 1 && e.StartLocal < end && e.EndLocal > weekStart)
+            .OrderBy(e => e.StartLocal).ThenBy(e => e.Category)
+            .ToListAsync();
+    }
+
+    private async Task PreviousWeek()
+    {
+        weekStart = weekStart.AddDays(-7);
+        await LoadWeekAsync();
+    }
+
+    private async Task NextWeek()
+    {
+        weekStart = weekStart.AddDays(7);
+        await LoadWeekAsync();
+    }
+
+    private async Task ThisWeek()
+    {
+        weekStart = StartOfWeek(GroupClock.Now);
+        await LoadWeekAsync();
+    }
+
+    private void ToggleDailyPrayer(ChangeEventArgs args) =>
+        showDailyPrayer = args.Value is bool checkedValue && checkedValue;
 }
