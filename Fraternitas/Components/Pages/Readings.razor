@@ -9,6 +9,14 @@
     <h1>The Five Joyful Mysteries</h1>
     <p>Read each passage three times, moving from observation to meaning to personal application.</p>
     <p class="muted small">Scripture from the Douay–Rheims 1899 Catholic Bible via HelloAO, with the full Catholic canon verified before loading.</p>
+    @if (DiscussionId.HasValue)
+    {
+        <p class="muted">Choose a verse and select <strong>Pin in this discussion</strong> to share it as a reply.</p>
+    }
+    else
+    {
+        <p class="muted">Use the <strong>Pin</strong> button beside a verse to share it in Discussions, or add it to the calendar as an administrator.</p>
+    }
 </div>
 
 @foreach (var reading in readings)
@@ -18,7 +26,7 @@
         <h2>@reading.Title</h2>
         <p class="scripture">@reading.Scripture</p>
         <p>@reading.Summary</p>
-        <ScripturePassageView Passage="@GetPassage(reading.Week)" Expanded="@(reading.Week == 1)" />
+        <ScripturePassageView Passage="@GetPassage(reading.Week)" Expanded="@(reading.Week == 1)" DiscussionId="@DiscussionId" />
         <div class="prompts">
             <div><strong>First reading · Listen</strong><p>What words, images or details stand out?</p></div>
             <div><strong>Second reading · Reflect</strong><p>What deeper meaning is God revealing in this passage?</p></div>
@@ -29,6 +37,9 @@
 }
 
 @code {
+    [Parameter, SupplyParameterFromQuery(Name = "discussionId")]
+    public Guid? DiscussionId { get; set; }
+
     private List<Reading> readings = [];
     private Dictionary<int, CatholicPassage> passages = [];
 
