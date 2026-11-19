@@ -1,0 +1,35 @@
+@using Fraternitas.Services
+
+@if (Passage is null)
+{
+    <p class="muted small" role="status">Loading the Catholic Scripture passage…</p>
+}
+else if (!Passage.IsAvailable)
+{
+    <div class="scripture-unavailable" role="status">
+        <strong>@Passage.Reference</strong>
+        <p>@Passage.Error</p>
+        <p class="muted small">Only a verified Catholic Bible text is displayed; no substitute translation is used.</p>
+    </div>
+}
+else
+{
+    <details class="scripture-fold" open="@Expanded">
+        <summary>Read @Passage.Reference in the Douay–Rheims Catholic Bible</summary>
+        <div class="scripture-verses">
+            @foreach (var verse in Passage.Verses)
+            {
+                <p class="scripture-verse"><sup>@verse.Number</sup>@verse.Text</p>
+            }
+            <p class="scripture-credit">
+                Douay–Rheims Bible, 1899 (Catholic, 73-book edition).
+                Text via <a href="@CatholicBibleService.SourceUrl" target="_blank" rel="noopener noreferrer">HelloAO Bible API</a>.
+            </p>
+        </div>
+    </details>
+}
+
+@code {
+    [Parameter] public CatholicPassage? Passage { get; set; }
+    [Parameter] public bool Expanded { get; set; }
+}
