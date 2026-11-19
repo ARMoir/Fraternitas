@@ -79,3 +79,30 @@ jobs:
               "http://127.0.0.1:5088/$page" -o "$RUNNER_TEMP/$page.html"
             echo "Authenticated page /$page loaded"
           done
+      - name: Smoke test first-run web administrator wizard
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ASPNETCORE_ENVIRONMENT=Development
+          export FRATERNITAS_DATA_DIR="$RUNNER_TEMP/wizard-data"
+          export ASPNETCORE_URLS="http://127.0.0.1:5089"
+          dotnet run --no-build --no-launch-profile -c Release --project Fraternitas/Fraternitas.csproj > "$RUNNER_TEMP/wizard.log" 2>&1 &
+          pid=$!
+          trap 'rc=$?; if [ "$rc" -ne 0 ]; then tail -100 "$RUNNER_TEMP/wizard.log"; fi; kill "$pid" 2>/dev/null || true' EXIT
+          for i in {1..40}; do
+            if curl -sS -f -c "$RUNNER_TEMP/wizard-cookies" "http://127.0.0.1:5089/account/setup" -o "$RUNNER_TEMP/wizard.html"; then break; fi
+            sleep 1
+          done
+          grep -q 'Set up Fraternitas' "$RUNNER_TEMP/wizard.html"
+          csrf=$(sed -n 's/.*name="__RequestVerificationToken" value="\([^"]*\)".*/\1/p' "$RUNNER_TEMP/wizard.html" | head -1)
+          test -n "$csrf"
+          curl -sS -D "$RUNNER_TEMP/wizard-headers" -o /dev/null -b "$RUNNER_TEMP/wizard-cookies" -c "$RUNNER_TEMP/wizard-cookies" \
+            --data-urlencode "__RequestVerificationToken=$csrf" --data-urlencode "name=Local Admin" \
+            --data-urlencode "email=wizard@example.invalid" --data-urlencode "password=test-password-for-wizard-123" \
+            --data-urlencode "confirm=test-password-for-wizard-123" "http://127.0.0.1:5089/account/setup"
+          grep -qi 'location: /' "$RUNNER_TEMP/wizard-headers"
+          curl -sS -f -b "$RUNNER_TEMP/wizard-cookies" "http://127.0.0.1:5089/admin" -o "$RUNNER_TEMP/wizard-admin.html"
+          grep -q 'Manage the group' "$RUNNER_TEMP/wizard-admin.html"
+          curl -sS -D "$RUNNER_TEMP/wizard-closed" -o /dev/null "http://127.0.0.1:5089/account/setup"
+          grep -qi 'location: /account/login' "$RUNNER_TEMP/wizard-closed"
+          echo 'First-run setup and one-time lockout passed'
