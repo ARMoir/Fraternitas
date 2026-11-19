@@ -15,6 +15,12 @@
         <p>Generate a single invitation link and share it in the group chat. Every man can
            register his own account using the <strong>same link</strong>, as many times as needed.
            The invitation expires after seven days, or sooner if you revoke it.</p>
+        @if (Navigation.ToAbsoluteUri("/").IsLoopback)
+        {
+            <p class="error">This site is running on localhost. The invitation URL will
+                only work on this computer until you host Fraternitas at an address everyone
+                can reach. Do not send a localhost link to the group.</p>
+        }
         <button class="action" @onclick="CreateInvitation">Create group invitation link</button>
         @if (!string.IsNullOrEmpty(invitationUrl))
         {
