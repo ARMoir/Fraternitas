@@ -19,6 +19,12 @@ jobs:
         run: dotnet build Fraternitas/Fraternitas.csproj --configuration Release --no-restore
       - name: Verify Douay-Rheims Catholic canon and all five live readings
         run: dotnet run --no-build --no-launch-profile -c Release --project Fraternitas/Fraternitas.csproj -- verify-scripture
+      - name: Verify Scripture pin persistence and permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          export FRATERNITAS_DATA_DIR="$RUNNER_TEMP/scripture-pin-test"
+          dotnet run --no-build --no-launch-profile -c Release --project Fraternitas/Fraternitas.csproj -- verify-scripture-pins
       - name: Smoke test startup, sign-in and private routes
         shell: bash
         run: |
