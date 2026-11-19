@@ -28,6 +28,9 @@ else
                 <p class="pre-line">@reply.Body</p>
             </div>
         }
+        <div class="verse-reply-link">
+            <a class="action secondary" href="@($"/readings?discussionId={Id}")">📌 Pin a Bible verse in this discussion</a>
+        </div>
         <h3>Add a reply</h3>
         <label>Your response<textarea rows="4" maxlength="3000" @bind="message"></textarea></label>
         @if (!string.IsNullOrEmpty(error)) { <p class="error">@error</p> }
