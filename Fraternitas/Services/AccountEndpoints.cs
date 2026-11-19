@@ -179,8 +179,14 @@ public static class AccountEndpoints
                 GroupId = invite.GroupId, EmailConfirmed = true };
             var created = await users.CreateAsync(member, password);
             if (!created.Succeeded) return Results.Redirect("/account/join?error=1");
-            var assigned = await users.AddToRoleAsync(member, "Member");
-            if (!assigned.Succeeded) return Results.Problem("Could not finish creating your account.");
+            // Everyone joining the group starts as an administrator unless an
+            // existing administrator later explicitly sets their access to Member only.
+            foreach (var role in new[] { "Member", "Admin" })
+            {
+                var assigned = await users.AddToRoleAsync(member, role);
+                if (!assigned.Succeeded)
+                    return Results.Problem("Could not finish creating your account.");
+            }
             await transaction.CommitAsync();
             await signIn.SignInAsync(member, false);
             return Results.Redirect("/");
