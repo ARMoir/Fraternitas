@@ -15,6 +15,7 @@
         @if (isAdmin)
         {
             <button class="action compact" @onclick="NewEvent">+ Add event</button>
+            <a class="action secondary compact" href="/readings">📌 Pin Scripture</a>
         }
         <label class="calendar-toggle">
             <input type="checkbox" checked="@showDailyPrayer" @onchange="ToggleDailyPrayer" />
@@ -45,7 +46,7 @@
             </div>
             <label>Type<select @bind="draft.Category">
                 <option>Meeting</option><option>Fasting</option><option>Prayer</option>
-                <option>Fellowship</option><option>Other</option>
+                <option>Fellowship</option><option>Scripture</option><option>Other</option>
             </select></label>
             <label>Reading<select @bind="draft.ReadingId">
                 <option value="">None</option>
@@ -144,6 +145,7 @@
             "Fasting" => "#a26830",
             "Prayer" => "#536b9a",
             "Fellowship" => "#845e88",
+            "Scripture" => "#5473a3",
             "Other" => "#687970",
             _ => "#245d4b"
         };
