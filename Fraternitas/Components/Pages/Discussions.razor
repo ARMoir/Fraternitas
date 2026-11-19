@@ -12,7 +12,10 @@
 </div>
 
 <section class="panel">
-    <h2>Start a discussion</h2>
+    <div class="section-head">
+        <h2>Start a discussion</h2>
+        <a class="action secondary compact" href="/readings">📌 Pin a Bible verse</a>
+    </div>
     <label>Topic<input maxlength="150" @bind="title" placeholder="What would you like to discuss?" /></label>
     <label>Your message<textarea rows="4" maxlength="6000" @bind="body"></textarea></label>
     @if (!string.IsNullOrEmpty(error)) { <p class="error">@error</p> }
