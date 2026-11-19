@@ -32,7 +32,7 @@ public sealed class CatholicBibleService(
     // This first implementation intentionally limits fetched passages to the
     // group's five Gospel readings. Do not silently switch translations.
     private static readonly Regex LukeReference = new(
-        @"^Luke\s+(\d+):(\d+)\s*[-–—]\s*(\d+)$",
+        @"^Luke\s+(\d+):(\d+)(?:\s*[-–—]\s*(\d+))?$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private static readonly HashSet<string> RequiredDeuterocanon = new(
@@ -45,8 +45,16 @@ public sealed class CatholicBibleService(
         if (!match.Success
             || !int.TryParse(match.Groups[1].Value, out int chapter)
             || !int.TryParse(match.Groups[2].Value, out int first)
-            || !int.TryParse(match.Groups[3].Value, out int last)
-            || chapter is < 1 or > 24 || first < 1 || last < first || last - first > 100)
+            || (match.Groups[3].Success && !int.TryParse(match.Groups[3].Value, out _)))
+        {
+            return new(reference, [],
+                "This reference is not yet supported by the Catholic Scripture reader.");
+        }
+
+        var last = match.Groups[3].Success
+            ? int.Parse(match.Groups[3].Value)
+            : first;
+        if (chapter is < 1 or > 24 || first < 1 || last < first || last - first > 100)
         {
             return new(reference, [],
                 "This reference is not yet supported by the Catholic Scripture reader.");
