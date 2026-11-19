@@ -28,7 +28,7 @@ public static class AccountEndpoints
 
             var token = WebUtility.HtmlEncode(csrf.GetAndStoreTokens(ctx).RequestToken ?? "");
             var error = ctx.Request.Query.ContainsKey("error")
-                ? "<p class='error'>Check your email and make sure both passwords match (12+ characters). Try again.</p>"
+                ? "<p class='error'>Check your email and make sure both non-empty passwords match. Try again.</p>"
                 : "";
             var form = $"""
                 <h1>Set up Fraternitas</h1>
@@ -37,10 +37,10 @@ public static class AccountEndpoints
                   <input type="hidden" name="__RequestVerificationToken" value="{token}">
                   <label>Your name<input name="name" maxlength="100" autocomplete="name" required></label>
                   <label>Email<input name="email" type="email" maxlength="256" autocomplete="username" required></label>
-                  <label>Password (12+ characters)<input name="password" type="password"
-                    minlength="12" autocomplete="new-password" required></label>
+                  <label>Password<input name="password" type="password"
+                    autocomplete="new-password" required></label>
                   <label>Confirm password<input name="confirm" type="password"
-                    minlength="12" autocomplete="new-password" required></label>
+                    autocomplete="new-password" required></label>
                   <button type="submit">Create administrator</button>
                 </form>
                 <p class="muted">Only available on localhost in Development mode. No preset password is used.</p>
@@ -68,7 +68,7 @@ public static class AccountEndpoints
                 var password = form["password"].ToString();
                 var confirmation = form["confirm"].ToString();
                 if (!AdminSetup.ValidEmail(email) || name.Length is < 1 or > 100
-                    || password.Length < 12 || password != confirmation)
+                    || string.IsNullOrEmpty(password) || password != confirmation)
                     return Results.Redirect("/account/setup?error=1");
 
                 var member = new Member
@@ -139,7 +139,7 @@ public static class AccountEndpoints
         {
             var token = WebUtility.HtmlEncode(csrf.GetAndStoreTokens(ctx).RequestToken ?? "");
             var code = WebUtility.HtmlEncode(ctx.Request.Query["code"].ToString());
-            var error = ctx.Request.Query.ContainsKey("error") ? "<p class='error'>This invitation is invalid, expired, already used, or the account details are not valid. Use a unique email and a 12+ character password.</p>" : "";
+            var error = ctx.Request.Query.ContainsKey("error") ? "<p class='error'>This invitation may have expired or been revoked, or your account details are invalid. Use a unique email and a non-empty password.</p>" : "";
             var form = $"""
                 <h1>Join the fraternity</h1><p>Create your private member account.</p>{error}
                 <form method="post" action="/account/join">
@@ -147,7 +147,7 @@ public static class AccountEndpoints
                   <label>Invitation code<input name="code" value="{code}" required></label>
                   <label>Your name<input name="name" maxlength="100" required></label>
                   <label>Email<input type="email" name="email" autocomplete="username" required></label>
-                  <label>Password (12+ characters)<input type="password" name="password" autocomplete="new-password" minlength="12" required></label>
+                  <label>Password<input type="password" name="password" autocomplete="new-password" required></label>
                   <button type="submit">Create account</button>
                 </form>
                 """;
@@ -164,11 +164,12 @@ public static class AccountEndpoints
             var name = form["name"].ToString().Trim();
             var password = form["password"].ToString();
 
-            if (code.Length < 20 || name.Length is < 1 or > 100 || email.Length > 256)
+            if (code.Length < 20 || name.Length is < 1 or > 100 || !AdminSetup.ValidEmail(email) || string.IsNullOrEmpty(password))
                 return Results.Redirect("/account/join?error=1");
 
             var hash = Hash(code);
-            // SQLite serializes writes; the unique email constraint and single-use token guard double registration.
+            // A shared invitation remains valid for any number of distinct members until expiry or admin revocation.
+            // The existing RedeemedUtc column acts as a deactivation marker, including legacy redeemed links.
             await using var transaction = await db.Database.BeginTransactionAsync();
             var invite = await db.Invitations.FirstOrDefaultAsync(i =>
                 i.TokenSha256 == hash && i.RedeemedUtc == null && i.ExpiresUtc > DateTime.UtcNow);
@@ -178,9 +179,8 @@ public static class AccountEndpoints
                 GroupId = invite.GroupId, EmailConfirmed = true };
             var created = await users.CreateAsync(member, password);
             if (!created.Succeeded) return Results.Redirect("/account/join?error=1");
-            await users.AddToRoleAsync(member, "Member");
-            invite.RedeemedUtc = DateTime.UtcNow;
-            await db.SaveChangesAsync();
+            var assigned = await users.AddToRoleAsync(member, "Member");
+            if (!assigned.Succeeded) return Results.Problem("Could not finish creating your account.");
             await transaction.CommitAsync();
             await signIn.SignInAsync(member, false);
             return Results.Redirect("/");
