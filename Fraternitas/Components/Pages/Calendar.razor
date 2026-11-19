@@ -103,6 +103,7 @@
 
     private void AppointmentSelected(SchedulerAppointmentSelectEventArgs<CalendarEvent> args)
     {
+        if (args.Data is null) return;
         if (!isAdmin)
         {
             Navigation.NavigateTo($"/events/{args.Data.Id}");
@@ -121,6 +122,7 @@
 
     private void RenderAppointment(SchedulerAppointmentRenderEventArgs<CalendarEvent> args)
     {
+        if (args.Data is null) return;
         var color = args.Data.Category switch
         {
             "Fasting" => "#a26830",
@@ -134,7 +136,7 @@
 
     private async Task AppointmentMoved(SchedulerAppointmentMoveEventArgs args)
     {
-        var moved = args.Appointment.Data as CalendarEvent;
+        var moved = args.Appointment?.Data as CalendarEvent;
         if (!isAdmin || moved is null)
         {
             if (scheduler is not null) await scheduler.Reload();
