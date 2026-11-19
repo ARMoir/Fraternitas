@@ -28,7 +28,7 @@ jobs:
           dotnet run --no-build --no-launch-profile -c Release \
             --project Fraternitas/Fraternitas.csproj > "$RUNNER_TEMP/fraternitas.log" 2>&1 &
           pid=$!
-          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "App log after smoke test failure:"; cat "$RUNNER_TEMP/fraternitas.log"; fi; kill "$pid" 2>/dev/null || true' EXIT
           ready=0
           for attempt in {1..30}; do
             if curl --silent --fail "http://127.0.0.1:5088/account/login" \
@@ -44,13 +44,16 @@ jobs:
           done
           if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/fraternitas.log"; exit 1; fi
           grep -q "Welcome back" "$RUNNER_TEMP/login.html"
+          echo "Login page loaded"
           curl --silent --fail "http://127.0.0.1:5088/account/join?code=sample" \
             -o "$RUNNER_TEMP/join.html"
           grep -q "Join the fraternity" "$RUNNER_TEMP/join.html"
+          echo "Join page loaded"
 
           # An unauthenticated client must not download a group document.
           status=$(curl -sS -o /dev/null -w "%{http_code}" \
             "http://127.0.0.1:5088/resources/file/00000000-0000-0000-0000-000000000000")
+          echo "Unauthenticated download response: $status"
           test "$status" = "302" || test "$status" = "401"
 
           csrf=$(sed -n 's/.*name="__RequestVerificationToken" value="\([^"]*\)".*/\1/p' \
@@ -62,7 +65,10 @@ jobs:
             --data-urlencode "email=$FRATERNITAS_ADMIN_EMAIL" \
             --data-urlencode "password=$FRATERNITAS_ADMIN_PASSWORD" \
             "http://127.0.0.1:5088/account/login"
+          echo "Login response:"
+          grep -i "^HTTP/\|^location:" "$RUNNER_TEMP/headers.txt" || true
           grep -qi "location: /" "$RUNNER_TEMP/headers.txt"
           curl --silent --fail -b "$RUNNER_TEMP/cookies.txt" \
             "http://127.0.0.1:5088/" -o "$RUNNER_TEMP/home.html"
           grep -q "Grow in faith" "$RUNNER_TEMP/home.html"
+          echo "Authenticated dashboard loaded"
