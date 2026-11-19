@@ -68,13 +68,24 @@ To invite members, sign in as administrator, open **Admin**, create **one group 
 - **Use HTTPS and secure cookie settings in production.** Do not expose a local HTTP development instance on the public internet.
 - For real deployment, add monitored backups, email-based recovery, member management, rate limiting, security headers, production migrations and a file scanning policy. Review data retention/privacy expectations with the group.
 
-## Meeting schedule
+## Advent 2026 calendar (automatic, one-time seed)
 
-The notes supplied with the initial plan said "Monday, October 23", which does not correspond to a Monday in 2026. **No meeting dates are prepopulated.** Confirm the five Monday 8 PM dates with the organizers before adding them. The five scripture guides are preloaded without a date.
+On the first startup after this update, Fraternitas fills the calendar in **both new and existing SQLite databases**, without resetting member accounts or replacing manually scheduled events. A transaction and the `AppSeedHistory` marker prevent duplicate entries on subsequent launches and prevent manually deleted seeded events from reappearing. The marker lives in the existing SQLite database; no EF schema migration is required.
 
-Suggested category conventions: **Meeting**, **Fasting**, **Prayer**, **Fellowship**, **Other**.
+- **Monday gatherings, 8:00–9:00 PM Eastern**: Nov 23 (Annunciation, Luke 1:26–38), Nov 30 (Visitation, Luke 1:39–56), Dec 7 (Nativity, Luke 2:1–20), Dec 14 (Presentation, Luke 2:22–38), Dec 21 (Finding in the Temple, Luke 2:41–52).
+- **Wednesday fasting + meatless Wednesdays**: Nov 25, Dec 2, 9, 16 and 23.
+- **Friday fasting**: Nov 27, Dec 4, 11 and 18. Dec 25 (Christmas Day) is not included.
+- **Daily personal practices**: all-day reminders Nov 23–Dec 24 for 20 minutes of silent prayer, the daily Ignatian Examen, and the agreed phone/TV asceticism. Their timing is chosen by each member; the calendar has a toggle to show/hide these reminders, hidden by default to keep the month view readable.
 
-All calendar UI times are **America/New_York** wall-clock times; individual .ics downloads convert those to UTC. Calendar export is per-event at this stage.
+Fasting notes include the group's two options: **two small meals and one normal meal**, or **fasting until 4 PM**. Each meeting includes three Lectio Divina readings and reflection prompts, an opportunity to discuss the week and one decade of the Rosary. The recurring Zoom URL is left blank pending Ryan's link. The Christmas-season get-together has no confirmed date, so it is mentioned as a discussion item rather than placed on the calendar.
+
+The full meeting transcript initially discusses November 30, but the final agreement is **November 23, 2026, at 8 PM**, continuing for five Mondays through December 21. All local date/time values use `America/New_York`. Day-long observances export as iCalendar `VALUE=DATE` instead of artificial midnight UTC appointments.
+
+### Updating or removing seeded events
+
+An administrator can edit or delete entries using the calendar. The importer does not recreate deleted events once the one-time seed has run. It also skips adding a seeded event when an administrator already created an event with the same local start time and category.
+
+**Event calendar entries are not push notifications.** Email/SMS reminders and subscriptions are future features.
 
 ## Tech & roadmap
 
