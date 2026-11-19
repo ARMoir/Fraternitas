@@ -10,7 +10,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 var dataPath = Environment.GetEnvironmentVariable("FRATERNITAS_DATA_DIR");
 if (string.IsNullOrWhiteSpace(dataPath))
-    dataPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
+{
+    // Keep Visual Studio F5 and "dotnet run --project ..." on the SAME database
+    // even when those commands start from different working directories.
+    var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
+    var basePath = File.Exists(Path.Combine(projectRoot, "Fraternitas.csproj"))
+        ? projectRoot
+        : builder.Environment.ContentRootPath;
+    dataPath = Path.Combine(basePath, "App_Data");
+}
 dataPath = Path.GetFullPath(dataPath);
 Directory.CreateDirectory(dataPath);
 Directory.CreateDirectory(Path.Combine(dataPath, "documents"));
@@ -50,11 +58,37 @@ builder.Services.AddRadzenComponents();
 var app = builder.Build();
 await DatabaseSetup.InitializeAsync(app.Services, app.Logger);
 
+// Explicit local recovery command; never binds a web server.
+// dotnet run --project Fraternitas/Fraternitas.csproj -- admin-setup
+if (args.Contains("admin-setup", StringComparer.OrdinalIgnoreCase))
+{
+    Environment.ExitCode = await AdminSetup.RunConsoleSetupAsync(app.Services) ? 0 : 1;
+    return;
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/error");
     app.UseHsts();
 }
+// Opening the site in Visual Studio on a fresh database immediately displays
+// the admin setup form. A real, remote web visitor cannot claim an admin account.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/" && HttpMethods.IsGet(context.Request.Method)
+        && AdminSetup.IsLocalDevelopmentRequest(context, app.Environment))
+    {
+        var factory = context.RequestServices.GetRequiredService<IDbContextFactory<FraternityDb>>();
+        await using var db = await factory.CreateDbContextAsync();
+        if (!await db.Users.AnyAsync())
+        {
+            context.Response.Redirect("/account/setup");
+            return;
+        }
+    }
+    await next();
+});
+
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
