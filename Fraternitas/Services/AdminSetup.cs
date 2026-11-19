@@ -39,13 +39,13 @@ public static class AdminSetup
             return false;
         }
 
-        Console.Write("New password (12+ characters): ");
+        Console.Write("New password: ");
         var password = ReadSecret();
         Console.Write("Confirm password: ");
         var confirmation = ReadSecret();
-        if (password.Length < 12 || password != confirmation)
+        if (password.Length == 0 || password != confirmation)
         {
-            Console.Error.WriteLine("Passwords must match and contain at least 12 characters.");
+            Console.Error.WriteLine("Passwords must match and cannot be empty.");
             return false;
         }
 
