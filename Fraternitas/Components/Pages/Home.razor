@@ -75,7 +75,7 @@
         await using var db = await DbFactory.CreateDbContextAsync();
         var today = GroupClock.Now.Date;
         upcoming = await db.CalendarEvents.AsNoTracking()
-            .Where(e => e.GroupId == 1 && e.EndLocal >= today)
+            .Where(e => e.GroupId == 1 && e.EndLocal >= today && (e.Category == "Meeting" || e.Category == "Fellowship"))
             .OrderBy(e => e.StartLocal).Take(5).ToListAsync();
         readings = await db.Readings.AsNoTracking().OrderBy(r => r.Week).ToListAsync();
         discussions = await db.Discussions.AsNoTracking().Include(p => p.Author)
