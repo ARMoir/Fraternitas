@@ -15,7 +15,11 @@
     {
         <button class="action compact" @onclick="NewEvent">+ Add event</button>
     }
-    <RadzenScheduler @ref="scheduler" TItem="CalendarEvent" Data="@events" StartProperty="StartLocal"
+    <label class="calendar-toggle">
+        <input type="checkbox" checked="@showDailyPrayer" @onchange="ToggleDailyPrayer" />
+        Show daily prayer &amp; Examen reminders
+    </label>
+    <RadzenScheduler @ref="scheduler" TItem="CalendarEvent" Data="@visibleEvents" StartProperty="StartLocal"
                      EndProperty="EndLocal" TextProperty="Title" SelectedIndex="2"
                      SlotSelect="@SlotSelected" AppointmentSelect="@AppointmentSelected"
                      AppointmentRender="@RenderAppointment" AppointmentMove="@AppointmentMoved"
@@ -61,6 +65,16 @@
 @code {
     private RadzenScheduler<CalendarEvent>? scheduler;
     private List<CalendarEvent> events = [];
+    private bool showDailyPrayer;
+    private List<CalendarEvent> visibleEvents => showDailyPrayer
+        ? events
+        : events.Where(e => e.Category != "Prayer" || e.Title != "Daily prayer & Examen").ToList();
+
+    private async Task ToggleDailyPrayer(ChangeEventArgs args)
+    {
+        showDailyPrayer = args.Value is bool checkedValue && checkedValue;
+        if (scheduler is not null) await scheduler.Reload();
+    }
     private List<Reading> readings = [];
     private EventEditor draft = new();
     private bool isAdmin;
