@@ -14,12 +14,14 @@ public sealed record MemberAccessRow(
 /// default-role reconciliation cannot silently undo a downgrade.
 /// No schema migration is required for existing SQLite databases.
 /// </summary>
-public sealed class MemberAccessService(UserManager<Member> users)
+public sealed class MemberAccessService(IServiceScopeFactory scopes)
 {
     public const string MemberOnlyClaimType = "Fraternitas.MemberOnly";
 
     public async Task<List<MemberAccessRow>> GetMembersAsync()
     {
+        using var scope = scopes.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<Member>>();
         var members = await users.Users.Where(u => u.GroupId == 1)
             .OrderBy(u => u.DisplayName).ThenBy(u => u.Email).ToListAsync();
         var result = new List<MemberAccessRow>();
@@ -36,6 +38,8 @@ public sealed class MemberAccessService(UserManager<Member> users)
 
     public async Task SetMemberOnlyAsync(ClaimsPrincipal actor, string userId, bool memberOnly)
     {
+        using var scope = scopes.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<Member>>();
         if (!actor.IsInRole("Admin"))
             throw new UnauthorizedAccessException("Only administrators can change access.");
 
