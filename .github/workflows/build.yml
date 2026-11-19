@@ -182,6 +182,8 @@ jobs:
             curl -sS --fail -b "$RUNNER_TEMP/$member.cookies" \
               "http://127.0.0.1:5089/readings" -o "$RUNNER_TEMP/$member.readings.html"
             grep -q 'The Five Joyful Mysteries' "$RUNNER_TEMP/$member.readings.html"
+            curl -sS --fail -b "$RUNNER_TEMP/$member.cookies"               "http://127.0.0.1:5089/admin" -o "$RUNNER_TEMP/$member.admin.html"
+            grep -q 'Member access' "$RUNNER_TEMP/$member.admin.html"
           done
           python3 - <<'PY'
           import os, sqlite3
