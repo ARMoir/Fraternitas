@@ -141,7 +141,8 @@ public static class AccountEndpoints
             var code = WebUtility.HtmlEncode(ctx.Request.Query["code"].ToString());
             var error = ctx.Request.Query.ContainsKey("error") ? "<p class='error'>This invitation may have expired or been revoked, or your account details are invalid. Use a unique email and a non-empty password.</p>" : "";
             var form = $"""
-                <h1>Join the fraternity</h1><p>Create your private member account.</p>{error}
+                <h1>Join the fraternity</h1><p>Create your private group account.</p>
+                <p class="muted">New members receive Administrator access by default. Your group can change your access to Member only later.</p>{error}
                 <form method="post" action="/account/join">
                   <input type="hidden" name="__RequestVerificationToken" value="{token}">
                   <label>Invitation code<input name="code" value="{code}" required></label>
