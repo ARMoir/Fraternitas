@@ -118,11 +118,14 @@ app.MapGet("/events/{id:guid}/calendar.ics", async (Guid id, IDbContextFactory<F
     if (ev is null) return Results.NotFound();
     string Escape(string value) => value.Replace(@"\", @"\\").Replace(";", @"\;")
         .Replace(",", @"\,").Replace("\r\n", @"\n").Replace("\n", @"\n");
-    var start = GroupClock.ToUtc(ev.StartLocal);
-    var end = GroupClock.ToUtc(ev.EndLocal);
+    var allDay = ev.StartLocal.TimeOfDay == TimeSpan.Zero
+        && ev.EndLocal == ev.StartLocal.Date.AddDays(1);
+    var dates = allDay
+        ? $"DTSTART;VALUE=DATE:{ev.StartLocal:yyyyMMdd}\r\nDTEND;VALUE=DATE:{ev.EndLocal:yyyyMMdd}\r\n"
+        : $"DTSTART:{GroupClock.ToUtc(ev.StartLocal):yyyyMMddTHHmmssZ}\r\nDTEND:{GroupClock.ToUtc(ev.EndLocal):yyyyMMddTHHmmssZ}\r\n";
     var ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Fraternitas//EN\r\nBEGIN:VEVENT\r\n"
         + $"UID:{ev.Id}@fraternitas\r\nDTSTAMP:{DateTime.UtcNow:yyyyMMddTHHmmssZ}\r\n"
-        + $"DTSTART:{start:yyyyMMddTHHmmssZ}\r\nDTEND:{end:yyyyMMddTHHmmssZ}\r\n"
+        + dates
         + $"SUMMARY:{Escape(ev.Title)}\r\nDESCRIPTION:{Escape(ev.Description)}\r\n"
         + "END:VEVENT\r\nEND:VCALENDAR\r\n";
     return Results.File(Encoding.UTF8.GetBytes(ics), "text/calendar", "fraternitas-event.ics");
