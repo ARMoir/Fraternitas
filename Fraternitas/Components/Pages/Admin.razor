@@ -128,6 +128,11 @@
 
     private async Task CreateInvitation()
     {
+        if (!await Access.IsAdministratorAsync((await Authentication.GetAuthenticationStateAsync()).User))
+        {
+            roleError = "Your administrator access has changed. Please sign in again.";
+            return;
+        }
         var code = AccountEndpoints.NewToken();
         await using var db = await DbFactory.CreateDbContextAsync();
         var invitation = new Invitation
@@ -145,6 +150,11 @@
 
     private async Task RevokeInvitation(Guid invitationId)
     {
+        if (!await Access.IsAdministratorAsync((await Authentication.GetAuthenticationStateAsync()).User))
+        {
+            roleError = "Your administrator access has changed. Please sign in again.";
+            return;
+        }
         await using var db = await DbFactory.CreateDbContextAsync();
         var invitation = await db.Invitations.FirstOrDefaultAsync(i =>
             i.Id == invitationId && i.GroupId == 1 && i.RedeemedUtc == null);
