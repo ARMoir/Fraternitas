@@ -80,6 +80,23 @@ jobs:
             -o "$RUNNER_TEMP/radzen-material.css"
           test -s "$RUNNER_TEMP/radzen-material.css"
           echo "Radzen Material stylesheet served successfully"
+          # Regression-check the one-time Advent 2026 seed, including all asceticism commitments.
+          python3 - <<'PY'
+          import os, sqlite3
+          db = sqlite3.connect(os.path.join(os.environ["FRATERNITAS_DATA_DIR"], "fraternitas.db"))
+          rows = db.execute("SELECT Category, Title, StartLocal, Description FROM CalendarEvents WHERE GroupId=1").fetchall()
+          meetings = [(title, start) for category, title, start, _ in rows if category == "Meeting"]
+          fasting = [(title, start) for category, title, start, _ in rows if category == "Fasting"]
+          prayers = [(title, start, description) for category, title, start, description in rows if category == "Prayer"]
+          assert len(meetings) == 5, f"Expected five gatherings, got {len(meetings)}"
+          assert len(fasting) == 9, f"Expected 5 Wednesday + 4 Friday fasts, got {len(fasting)}"
+          assert len(prayers) == 32, f"Expected Nov 23-Dec 24 daily practices, got {len(prayers)}"
+          assert len(rows) == 46, f"Unexpected total / duplicate seeding: {len(rows)}"
+          assert any(start.startswith("2026-11-23 20:00:00") for _, start in meetings), "Next Monday meeting missing"
+          assert all("turn off your phone" in description and "Giving up TV" in description for _, _, description in prayers)
+          assert any("meatless" in title.lower() for title, _ in fasting)
+          print("Advent seed validated: 5 meetings, 9 fasting days, 32 daily prayer/Examen/phone-or-TV practices")
+          PY
           echo "Authenticated dashboard loaded"
           for page in calendar readings discussions documents admin; do
             curl --silent --fail -b "$RUNNER_TEMP/cookies.txt" \
