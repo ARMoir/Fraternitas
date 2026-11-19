@@ -72,3 +72,8 @@ jobs:
             "http://127.0.0.1:5088/" -o "$RUNNER_TEMP/home.html"
           grep -q "Grow in faith" "$RUNNER_TEMP/home.html"
           echo "Authenticated dashboard loaded"
+          for page in calendar readings discussions documents admin; do
+            curl --silent --fail -b "$RUNNER_TEMP/cookies.txt" \
+              "http://127.0.0.1:5088/$page" -o "$RUNNER_TEMP/$page.html"
+            echo "Authenticated page /$page loaded"
+          done
