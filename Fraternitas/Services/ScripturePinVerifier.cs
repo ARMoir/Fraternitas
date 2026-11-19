@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Fraternitas.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 
 namespace Fraternitas.Services;
 
@@ -28,6 +29,16 @@ public static class ScripturePinVerifier
             });
             await db.SaveChangesAsync();
         }
+
+        // Grant the test identity an actual stored Admin role. A fabricated
+        // Admin claim alone must not permit calendar modifications.
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<Member>>();
+        var stored = await users.FindByIdAsync(testId)
+            ?? throw new Exception("Test member was not created.");
+        var assigned = await users.AddToRoleAsync(stored, "Admin");
+        if (!assigned.Succeeded)
+            throw new Exception("Could not create test administrator: " +
+                string.Join("; ", assigned.Errors.Select(e => e.Description)));
 
         ClaimsPrincipal Principal(bool admin)
         {
