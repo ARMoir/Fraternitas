@@ -17,7 +17,7 @@
     }
     <label class="calendar-toggle">
         <input type="checkbox" checked="@showDailyPrayer" @onchange="ToggleDailyPrayer" />
-        Show daily prayer &amp; Examen reminders
+        Show daily prayer, Examen &amp; screen-time commitments
     </label>
     <RadzenScheduler @ref="scheduler" TItem="CalendarEvent" Data="@visibleEvents" StartProperty="StartLocal"
                      EndProperty="EndLocal" TextProperty="Title" SelectedIndex="2"
