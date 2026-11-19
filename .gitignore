@@ -1,0 +1,12 @@
+bin/
+obj/
+.vs/
+*.user
+App_Data/
+*.db
+*.db-shm
+*.db-wal
+**/appsettings.Production.json
+**/appsettings.Development.local.json
+.env
+.DS_Store
