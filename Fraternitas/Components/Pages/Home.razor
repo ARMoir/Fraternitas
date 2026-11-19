@@ -17,25 +17,13 @@
 <div class="dashboard-grid">
     <section class="panel">
         <div class="section-head">
-            <h2>Week at a glance</h2>
+            <h2>On the calendar</h2>
             <a href="/calendar">Full calendar</a>
         </div>
-        <div class="week-controls">
-            <button type="button" class="week-arrow" @onclick="PreviousWeek" aria-label="Previous week" title="Previous week">‹</button>
-            <div class="week-range">
-                <strong>@weekStart.ToString("MMM d") – @weekStart.AddDays(6).ToString("MMM d, yyyy")</strong>
-                <small>Monday–Sunday · Eastern Time</small>
-            </div>
-            <button type="button" class="week-arrow" @onclick="NextWeek" aria-label="Next week" title="Next week">›</button>
-            <button type="button" class="week-today" @onclick="ThisWeek">This week</button>
-        </div>
-        <label class="calendar-toggle">
-            <input type="checkbox" checked="@showDailyPrayer" @onchange="ToggleDailyPrayer" />
-            Include daily prayer, Examen &amp; screen-time reminders
-        </label>
+        <p class="muted small">@weekStart.ToString("MMM d") – @weekStart.AddDays(6).ToString("MMM d, yyyy") · Eastern Time</p>
         @if (visibleEvents.Count == 0)
         {
-            <p class="muted">No calendar events scheduled for this week.</p>
+            <p class="muted">No events scheduled for this week.</p>
         }
         @foreach (var ev in visibleEvents)
         {
@@ -87,10 +75,8 @@
 
 @code {
     private List<CalendarEvent> weekEvents = [];
-    private List<CalendarEvent> visibleEvents => showDailyPrayer
-        ? weekEvents
-        : weekEvents.Where(e => e.Category != "Prayer" || e.Title != "Daily prayer & Examen").ToList();
-    private bool showDailyPrayer;
+    private List<CalendarEvent> visibleEvents => weekEvents
+        .Where(e => e.Category != "Prayer" || e.Title != "Daily prayer & Examen").ToList();
     private DateTime weekStart;
     private List<Reading> readings = [];
     private List<Discussion> discussions = [];
@@ -136,24 +122,4 @@
             .ToListAsync();
     }
 
-    private async Task PreviousWeek()
-    {
-        weekStart = weekStart.AddDays(-7);
-        await LoadWeekAsync();
-    }
-
-    private async Task NextWeek()
-    {
-        weekStart = weekStart.AddDays(7);
-        await LoadWeekAsync();
-    }
-
-    private async Task ThisWeek()
-    {
-        weekStart = StartOfWeek(GroupClock.Now);
-        await LoadWeekAsync();
-    }
-
-    private void ToggleDailyPrayer(ChangeEventArgs args) =>
-        showDailyPrayer = args.Value is bool checkedValue && checkedValue;
 }
