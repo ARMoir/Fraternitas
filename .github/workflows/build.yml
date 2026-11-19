@@ -85,6 +85,7 @@ jobs:
           # Home has one simple weekly event list and a full calendar link.
           grep -q "On the calendar" "$RUNNER_TEMP/home.html"
           grep -q "Full calendar" "$RUNNER_TEMP/home.html"
+          grep -q "Wednesday &amp; Friday fasting · Until 4 PM" "$RUNNER_TEMP/home.html"
           ! grep -q "Previous week" "$RUNNER_TEMP/home.html"
           ! grep -q "Next week" "$RUNNER_TEMP/home.html"
           ! grep -q "Upcoming gatherings" "$RUNNER_TEMP/home.html"
@@ -109,6 +110,8 @@ jobs:
           assert any(start.startswith("2026-11-23 20:00:00") for _, start in meetings), "Next Monday meeting missing"
           assert all("turn off your phone" in description and "Giving up TV" in description for _, _, description in prayers)
           assert any("meatless" in title.lower() for title, _ in fasting)
+          assert all("until 4 PM" in title for title, _ in fasting), "4 PM cutoff missing from seeded fasting titles"
+          assert all("Fast until 4:00 PM Eastern" in desc for category, _, _, desc in rows if category == "Fasting"), "4 PM cutoff missing from fasting details"
           print("Advent seed validated: 5 meetings, 9 fasting days, 32 daily prayer/Examen/phone-or-TV practices")
           PY
           echo "Authenticated dashboard loaded"
