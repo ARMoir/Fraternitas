@@ -31,6 +31,19 @@ public static class MemberAccessVerifier
                 throw new Exception($"{description}: {string.Join(", ", result.Errors.Select(e => e.Description))}");
         }
 
+        // Use a fresh Identity context for every post-write assertion: reconciliation
+        // and role changes intentionally run in independent scopes.
+        async Task<(bool IsAdmin, bool MemberOnly)> StateAsync(string userId)
+        {
+            using var fresh = services.CreateScope();
+            var currentUsers = fresh.ServiceProvider.GetRequiredService<UserManager<Member>>();
+            var stored = await currentUsers.FindByIdAsync(userId)
+                ?? throw new Exception("Test user is missing.");
+            return (await currentUsers.IsInRoleAsync(stored, "Admin"),
+                (await currentUsers.GetClaimsAsync(stored)).Any(c =>
+                    c.Type == MemberAccessService.MemberOnlyClaimType && c.Value == "true"));
+        }
+
         Check(await users.CreateAsync(actor), "Create admin");
         Check(await users.AddToRoleAsync(actor, "Member"), "Add Member role to admin");
         Check(await users.AddToRoleAsync(actor, "Admin"), "Add Admin role to admin");
@@ -42,7 +55,7 @@ public static class MemberAccessVerifier
 
         // Upgrade users that were invited before Admin became the default.
         await MemberAccessService.ReconcileDefaultsAsync(services, logger);
-        if (!await users.IsInRoleAsync(existing, "Admin"))
+        if (!(await StateAsync(existing.Id)).IsAdmin)
             throw new Exception("Existing Member was not promoted to default Admin on startup.");
 
         var actorPrincipal = new ClaimsPrincipal(new ClaimsIdentity(
@@ -51,14 +64,13 @@ public static class MemberAccessVerifier
 
         // Deliberately set one user to Member only.
         await access.SetMemberOnlyAsync(actorPrincipal, existing.Id, memberOnly: true);
-        if (await users.IsInRoleAsync(existing, "Admin") ||
-            !(await users.GetClaimsAsync(existing)).Any(c =>
-                c.Type == MemberAccessService.MemberOnlyClaimType && c.Value == "true"))
-            throw new Exception("Member-only override was not saved.");
+        var downgraded = await StateAsync(existing.Id);
+        if (downgraded.IsAdmin || !downgraded.MemberOnly)
+            throw new Exception($"Member-only override was not saved: Admin={downgraded.IsAdmin}, explicit={downgraded.MemberOnly}.");
 
         // Re-running startup must NOT silently re-grant Admin.
         await MemberAccessService.ReconcileDefaultsAsync(services, logger);
-        if (await users.IsInRoleAsync(existing, "Admin"))
+        if ((await StateAsync(existing.Id)).IsAdmin)
             throw new Exception("Startup incorrectly promoted an explicitly downgraded account.");
 
         // Prevent demoting the final administrator.
@@ -76,9 +88,8 @@ public static class MemberAccessVerifier
 
         // Re-enable Admin and remove the explicit override.
         await access.SetMemberOnlyAsync(actorPrincipal, existing.Id, memberOnly: false);
-        if (!await users.IsInRoleAsync(existing, "Admin") ||
-            (await users.GetClaimsAsync(existing)).Any(c =>
-                c.Type == MemberAccessService.MemberOnlyClaimType))
+        var restored = await StateAsync(existing.Id);
+        if (!restored.IsAdmin || restored.MemberOnly)
             throw new Exception("Administrator restoration did not remove the explicit exception.");
 
         // A stale cookie must not have authority to modify roles after demotion.
