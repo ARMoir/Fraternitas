@@ -17,3 +17,52 @@ jobs:
         run: dotnet restore Fraternitas/Fraternitas.csproj
       - name: Build
         run: dotnet build Fraternitas/Fraternitas.csproj --configuration Release --no-restore
+      - name: Smoke test startup, sign-in and private routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          export FRATERNITAS_ADMIN_EMAIL="ci-admin@example.invalid"
+          export FRATERNITAS_ADMIN_PASSWORD="ci-only-long-test-password-123"
+          export FRATERNITAS_DATA_DIR="$RUNNER_TEMP/fraternitas-data"
+          export ASPNETCORE_URLS="http://127.0.0.1:5088"
+          dotnet run --no-build --no-launch-profile -c Release \
+            --project Fraternitas/Fraternitas.csproj > "$RUNNER_TEMP/fraternitas.log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in {1..30}; do
+            if curl --silent --fail "http://127.0.0.1:5088/account/login" \
+                -c "$RUNNER_TEMP/cookies.txt" -o "$RUNNER_TEMP/login.html"; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/fraternitas.log"
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/fraternitas.log"; exit 1; fi
+          grep -q "Welcome back" "$RUNNER_TEMP/login.html"
+          curl --silent --fail "http://127.0.0.1:5088/account/join?code=sample" \
+            -o "$RUNNER_TEMP/join.html"
+          grep -q "Join the fraternity" "$RUNNER_TEMP/join.html"
+
+          # An unauthenticated client must not download a group document.
+          status=$(curl -sS -o /dev/null -w "%{http_code}" \
+            "http://127.0.0.1:5088/resources/file/00000000-0000-0000-0000-000000000000")
+          test "$status" = "302" || test "$status" = "401"
+
+          csrf=$(sed -n 's/.*name="__RequestVerificationToken" value="\([^"]*\)".*/\1/p' \
+            "$RUNNER_TEMP/login.html" | head -1)
+          test -n "$csrf"
+          curl --silent -D "$RUNNER_TEMP/headers.txt" -o /dev/null \
+            -b "$RUNNER_TEMP/cookies.txt" -c "$RUNNER_TEMP/cookies.txt" \
+            --data-urlencode "__RequestVerificationToken=$csrf" \
+            --data-urlencode "email=$FRATERNITAS_ADMIN_EMAIL" \
+            --data-urlencode "password=$FRATERNITAS_ADMIN_PASSWORD" \
+            "http://127.0.0.1:5088/account/login"
+          grep -qi "location: /" "$RUNNER_TEMP/headers.txt"
+          curl --silent --fail -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/" -o "$RUNNER_TEMP/home.html"
+          grep -q "Grow in faith" "$RUNNER_TEMP/home.html"
