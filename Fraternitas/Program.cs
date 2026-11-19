@@ -126,5 +126,8 @@ app.MapGet("/events/{id:guid}/calendar.ics", async (Guid id, IDbContextFactory<F
     return Results.File(Encoding.UTF8.GetBytes(ics), "text/calendar", "fraternitas-event.ics");
 }).RequireAuthorization();
 
+// .NET 10 serves referenced package static web assets (Radzen CSS/fonts/scripts)
+// through MapStaticAssets, including Release builds.
+app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();
