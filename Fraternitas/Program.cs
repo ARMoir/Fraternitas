@@ -75,6 +75,13 @@ if (args.Contains("admin-setup", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+// Integration test helper; run only with a disposable data directory.
+if (args.Contains("verify-scripture-pins", StringComparer.OrdinalIgnoreCase))
+{
+    await ScripturePinVerifier.VerifyAsync(app.Services);
+    return;
+}
+
 // Run a real Catholic-canon + passage fetch verification without starting the web server.
 // dotnet run --project Fraternitas/Fraternitas.csproj -- verify-scripture
 if (args.Contains("verify-scripture", StringComparer.OrdinalIgnoreCase))
