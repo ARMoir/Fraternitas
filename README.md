@@ -14,6 +14,7 @@ Built with **.NET 10 Blazor Web App (Interactive Server)**, **Radzen Scheduler**
 - Event details with scriptures, reading linkage, description and meeting link
 - Five seeded Joyful Mysteries, with the three Lectio Divina prompts
 - Group discussion topics and replies
+- Per-verse Catholic Scripture pins: discussion topics, replies, or all-day calendar events (calendar pins restricted to admins)
 - Private file uploads/downloads (.pdf, .docx, .txt, .png, .jpg/.jpeg, max 10 MB)
 - Administrator page for reusable seven-day group invites, revocation and group counts
 - Responsive layout usable on desktop and mobile
@@ -103,6 +104,19 @@ dotnet run --project .\Fraternitas\Fraternitas.csproj -- verify-scripture
 
 This is **not a Catholic daily Mass lectionary**; it retrieves the five specific Gospel passages chosen for the group's Advent Lectio Divina. For Mass readings, a separate approved lectionary source is needed.
 
+## Pin Scripture in the calendar or discussions
+
+From **Readings** (or a Monday meeting's detail page), expand a Douay–Rheims passage and select **📌 Pin** beside any verse. Add an optional reflection (up to 1,200 characters), then:
+
+- **Share in discussions**: any signed-in group member can create a new Scripture discussion topic, containing the canonical Bible reference and verified verse text.
+- **Pin on calendar**: administrators can choose a date (Eastern) and create an all-day **Scripture** calendar event that includes the verse and reflection.
+- **Pin in this discussion**: from an existing discussion, select **Pin a Bible verse in this discussion**. This opens the readings and adds the chosen verse as a reply to that thread.
+
+Calendar and discussion pages both include shortcuts to the readings for pinning. Pins are saved into existing `CalendarEvent`, `Discussion` and `Reply` records; **no new SQLite migration is needed**. The Bible text is always independently fetched from the verified 73-book Douay–Rheims endpoint before saving. If the API is unavailable, pinning fails without creating an unverified quote. Personal notes are displayed as escaped text, not executable HTML.
+
+Version 1 pins individual verses from the five Joyful Mystery **Luke** passages already shown in Fraternitas. This is not yet a universal Bible browser or Bible-wide text search; that can be added later.
+
+An integration test (`verify-scripture-pins`) uses an isolated SQLite database to verify that a Scripture topic, an existing-thread reply, and an all-day event persist correctly, and that non-admin users cannot pin to the calendar.
 ## Tech & roadmap
 
 - `Fraternitas/Data`: EF/Identity models and initial seed
