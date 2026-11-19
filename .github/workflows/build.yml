@@ -29,9 +29,23 @@ jobs:
                          if t.get('language') == 'eng' and
                          any(p in (t.get('englishName', '') + ' ' + t.get('name', '')).lower()
                              for p in ('douay', 'catholic'))]
+              english = [t for t in data.get('translations', []) if t.get('language') == 'eng']
+              print('English translations:', len(english))
+              for t in english:
+                  if t.get('numberOfBooks',0) >= 73 or any(p in (t.get('englishName','')+' '+t.get('name','')).lower() for p in ('douay', 'catholic', 'vulgate')):
+                      print('Candidate:', t.get('id'), t.get('englishName') or t.get('name'),
+                            'books=', t.get('numberOfBooks'), 'list=', t.get('listOfBooksApiLink'))
               for t in matches:
-                  print('Catholic candidate:', t.get('id'), t.get('englishName') or t.get('name'),
-                        'books=', t.get('numberOfBooks'), 'list=', t.get('listOfBooksApiLink'))
+                  link = t.get('listOfBooksApiLink')
+                  if not link: continue
+                  try:
+                      with urllib.request.urlopen('https://bible.helloao.org'+link, timeout=15) as response:
+                          bs=json.load(response)
+                      print('Books:',t.get('id'), len(bs.get('books',[])),
+                            [(b.get('id'),b.get('name')) for b in bs.get('books',[]) if
+                              any(k in (b.get('name') or '').lower() for k in ('tob','judit','wisdom','sirach','baruch','macc','machab','ecclesias'))])
+                  except Exception as e:
+                      print('Book inspection failed', t.get('id'),e)
           except Exception as exc:
               print('Translation API probe unavailable:', str(exc))
           PY
