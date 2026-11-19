@@ -65,28 +65,7 @@ public static class DatabaseSetup
             if (!await roles.RoleExistsAsync(role))
                 await roles.CreateAsync(new Microsoft.AspNetCore.Identity.IdentityRole(role));
 
-        var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<Member>>();
-        if (await users.Users.AnyAsync()) return;
-
-        var email = Environment.GetEnvironmentVariable("FRATERNITAS_ADMIN_EMAIL");
-        var password = Environment.GetEnvironmentVariable("FRATERNITAS_ADMIN_PASSWORD");
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
-        {
-            logger.LogWarning("No admin account exists. Configure FRATERNITAS_ADMIN_EMAIL and FRATERNITAS_ADMIN_PASSWORD, then restart.");
-            return;
-        }
-
-        var admin = new Member { UserName = email.Trim(), Email = email.Trim(),
-            EmailConfirmed = true, DisplayName = "Administrator", GroupId = 1 };
-        var result = await users.CreateAsync(admin, password);
-        if (!result.Succeeded)
-        {
-            logger.LogError("Admin account setup failed: {Errors}",
-                string.Join("; ", result.Errors.Select(e => e.Description)));
-            return;
-        }
-        await users.AddToRoleAsync(admin, "Admin");
-        await users.AddToRoleAsync(admin, "Member");
-        logger.LogInformation("Initial admin account created.");
+        // Admin creation is deliberately interactive. Never seed passwords or accounts
+        // from environment variables on ordinary application startup.
     }
 }
