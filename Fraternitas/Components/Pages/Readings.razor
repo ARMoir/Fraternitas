@@ -1,12 +1,14 @@
 @page "/readings"
 @attribute [Authorize]
 @inject IDbContextFactory<FraternityDb> DbFactory
+@inject CatholicBibleService Bible
 
 <PageTitle>Readings | Fraternitas</PageTitle>
 <div class="page-head">
     <div class="eyebrow">LECTIO DIVINA</div>
     <h1>The Five Joyful Mysteries</h1>
     <p>Read each passage three times, moving from observation to meaning to personal application.</p>
+    <p class="muted small">Scripture from the Douay–Rheims 1899 Catholic Bible via HelloAO, with the full Catholic canon verified before loading.</p>
 </div>
 
 @foreach (var reading in readings)
@@ -16,6 +18,7 @@
         <h2>@reading.Title</h2>
         <p class="scripture">@reading.Scripture</p>
         <p>@reading.Summary</p>
+        <ScripturePassageView Passage="@GetPassage(reading.Week)" Expanded="@(reading.Week == 1)" />
         <div class="prompts">
             <div><strong>First reading · Listen</strong><p>What words, images or details stand out?</p></div>
             <div><strong>Second reading · Reflect</strong><p>What deeper meaning is God revealing in this passage?</p></div>
@@ -27,9 +30,26 @@
 
 @code {
     private List<Reading> readings = [];
+    private Dictionary<int, CatholicPassage> passages = [];
+
     protected override async Task OnInitializedAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         readings = await db.Readings.AsNoTracking().OrderBy(r => r.Week).ToListAsync();
     }
+
+    // Load from HelloAO after the first render so an unavailable API
+    // doesn't delay or break the reading guides.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || readings.Count == 0) return;
+
+        var results = await Task.WhenAll(readings.Select(async reading =>
+            (Week: reading.Week, Passage: await Bible.GetPassageAsync(reading.Scripture))));
+        passages = results.ToDictionary(result => result.Week, result => result.Passage);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private CatholicPassage? GetPassage(int week) =>
+        passages.GetValueOrDefault(week);
 }
