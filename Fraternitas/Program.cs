@@ -30,7 +30,9 @@ builder.Services.AddDbContextFactory<FraternityDb>(options =>
     options.UseSqlite($"Data Source={Path.Combine(dataPath, "fraternitas.db")}"));
 builder.Services.AddIdentity<Member, IdentityRole>(options =>
 {
-    options.Password.RequiredLength = 12;
+    // Allow any non-empty password; no complexity or minimum-length rules.
+    options.Password.RequiredLength = 1;
+    options.Password.RequiredUniqueChars = 1;
     options.Password.RequireNonAlphanumeric = false;
     options.Password.RequireDigit = false;
     options.Password.RequireUppercase = false;
