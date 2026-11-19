@@ -12,13 +12,14 @@ namespace Fraternitas.Services;
 /// </summary>
 public sealed class ScripturePinService(
     IDbContextFactory<FraternityDb> dbFactory,
-    CatholicBibleService bible)
+    CatholicBibleService bible,
+    MemberAccessService access)
 {
     public async Task<Guid> PinToCalendarAsync(
         ClaimsPrincipal user, string reference, DateTime date, string? reflection = null)
     {
-        if (!user.IsInRole("Admin"))
-            throw new UnauthorizedAccessException("Only group administrators may pin events to the calendar.");
+        if (!await access.IsAdministratorAsync(user))
+            throw new UnauthorizedAccessException("Only current group administrators may pin events to the calendar.");
 
         if (date.Year is < 2000 or > 2100)
             throw new ArgumentException("Please choose a valid calendar date.");
