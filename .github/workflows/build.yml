@@ -24,6 +24,7 @@ jobs:
           export FRATERNITAS_ADMIN_EMAIL="ci-admin@example.invalid"
           export FRATERNITAS_ADMIN_PASSWORD="ci-only-long-test-password-123"
           export FRATERNITAS_DATA_DIR="$RUNNER_TEMP/fraternitas-data"
+          export ASPNETCORE_ENVIRONMENT=Development
           export ASPNETCORE_URLS="http://127.0.0.1:5088"
           # Admin creation is now explicit. Exercise terminal setup before the login smoke test.
           printf '%s\n%s\n%s\n' "$FRATERNITAS_ADMIN_EMAIL" "$FRATERNITAS_ADMIN_PASSWORD" "$FRATERNITAS_ADMIN_PASSWORD" | dotnet run --no-build --no-launch-profile -c Release --project Fraternitas/Fraternitas.csproj -- admin-setup
