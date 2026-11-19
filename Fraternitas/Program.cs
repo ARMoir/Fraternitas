@@ -54,6 +54,12 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.ExpireTimeSpan = TimeSpan.FromDays(14);
 });
 
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<CatholicBibleService>(client =>
+{
+    client.BaseAddress = new Uri("https://bible.helloao.org/");
+    client.Timeout = TimeSpan.FromSeconds(12);
+});
 builder.Services.AddAuthorization();
 builder.Services.AddRadzenComponents();
 
