@@ -71,3 +71,14 @@ textarea{resize:vertical;line-height:1.5}.two-columns{display:grid;grid-template
 .calendar-toolbar .action.compact{margin-bottom:0;flex-shrink:0}
 .calendar-toolbar .calendar-toggle{margin:0;display:inline-flex;align-items:center;gap:.65rem;line-height:1.45;cursor:pointer}
 .calendar-toolbar .calendar-toggle input[type=checkbox]{flex:0 0 auto}
+
+/* Catholic Scripture reader: compact numbered verses with a collapsible reading. */
+.scripture-fold{margin:1.15rem 0;border:1px solid #dce7db;border-radius:10px;background:#f8faf5}
+.scripture-fold summary{padding:.9rem 1rem;cursor:pointer;color:#245a43;font-weight:700;line-height:1.45}
+.scripture-fold summary:hover{background:#eff5eb}
+.scripture-verses{padding:.2rem 1.15rem 1rem;border-top:1px solid #e3ebe0}
+.scripture-verse{margin:.7rem 0;font-size:.96rem;line-height:1.75;color:#35483b}
+.scripture-verse sup{font-size:.72rem;font-weight:750;color:#a47a3d;margin-right:.45rem;vertical-align:super}
+.scripture-credit{border-top:1px solid #e1e8dc;padding-top:.8rem;margin-top:1.2rem;color:#748076;font-size:.78rem}
+.scripture-unavailable{margin:1rem 0;background:#f6f5ed;border:1px solid #e5dfce;border-radius:9px;padding:.9rem 1rem}
+.scripture-unavailable p{margin:.25rem 0;font-size:.9rem}
