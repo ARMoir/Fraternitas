@@ -17,6 +17,9 @@
         <p>Generate a single invitation link and share it in the group chat. Every man can
            register his own account using the <strong>same link</strong>, as many times as needed.
            The invitation expires after seven days, or sooner if you revoke it.</p>
+        <p class="muted small"><strong>Access notice:</strong> anyone who registers with this link
+           becomes an Administrator by default, including access to event management, invitations,
+           and member roles. Only share it with people you trust.</p>
         @if (Navigation.ToAbsoluteUri("/").IsLoopback)
         {
             <p class="error">This site is running on localhost. The invitation URL will
