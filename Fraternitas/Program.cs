@@ -74,6 +74,33 @@ if (args.Contains("admin-setup", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+// Run a real Catholic-canon + passage fetch verification without starting the web server.
+// dotnet run --project Fraternitas/Fraternitas.csproj -- verify-scripture
+if (args.Contains("verify-scripture", StringComparer.OrdinalIgnoreCase))
+{
+    using var scope = app.Services.CreateScope();
+    var bible = scope.ServiceProvider.GetRequiredService<CatholicBibleService>();
+    var references = new[]
+    {
+        "Luke 1:26–38", "Luke 1:39–56", "Luke 2:1–20",
+        "Luke 2:22–38", "Luke 2:41–52"
+    };
+    var complete = true;
+    foreach (var reference in references)
+    {
+        var passage = await bible.GetPassageAsync(reference);
+        Console.WriteLine($"{reference}: {(passage.IsAvailable ? passage.Verses.Count + " verified Catholic verses" : "FAILED")}");
+        if (!passage.IsAvailable)
+        {
+            complete = false;
+            Console.Error.WriteLine(passage.Error);
+        }
+    }
+    Environment.ExitCode = complete ? 0 : 1;
+    return;
+}
+
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/error");
