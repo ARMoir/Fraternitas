@@ -1,4 +1,8 @@
 @using Fraternitas.Services
+@inject ScripturePinService Pins
+@inject AuthenticationStateProvider Authentication
+@inject NavigationManager Navigation
+@inject ILogger<ScripturePassageView> Logger
 
 @if (Passage is null)
 {
@@ -19,7 +23,50 @@ else
         <div class="scripture-verses">
             @foreach (var verse in Passage.Verses)
             {
-                <p class="scripture-verse"><sup>@verse.Number</sup>@verse.Text</p>
+                <div class="scripture-verse-entry">
+                    <div class="scripture-verse-row">
+                        <p class="scripture-verse"><sup>@verse.Number</sup>@verse.Text</p>
+                        <button type="button" class="verse-pin-button"
+                                @onclick="() => SelectVerse(verse.Number)"
+                                aria-label="@($"Pin {VerseReference(verse.Number)}")">
+                            <span aria-hidden="true">📌</span> Pin
+                        </button>
+                    </div>
+                    @if (selectedVerse == verse.Number)
+                    {
+                        <div class="verse-pin-editor">
+                            <div class="section-head">
+                                <strong>Pin @VerseReference(verse.Number)</strong>
+                                <button type="button" class="plain-button" @onclick="ClosePin" aria-label="Close verse pin">×</button>
+                            </div>
+                            <p class="muted small">The verified Douay–Rheims text and reference will be included automatically.</p>
+                            <label>Your reflection (optional)
+                                <textarea @bind="reflection" rows="2" maxlength="1200"
+                                          placeholder="Why does this verse stand out to you?"></textarea>
+                            </label>
+                            @if (!string.IsNullOrEmpty(error))
+                            {
+                                <p class="error" role="alert">@error</p>
+                            }
+                            <div class="verse-pin-actions">
+                                <button type="button" class="action" disabled="@saving"
+                                        @onclick="() => ShareInDiscussionAsync(verse.Number)">
+                                    @(DiscussionId.HasValue ? "Pin in this discussion" : "Share in discussions")
+                                </button>
+                                @if (isAdmin)
+                                {
+                                    <label class="verse-pin-date">Calendar date (Eastern)
+                                        <input type="date" @bind="calendarDate" @bind:format="yyyy-MM-dd" />
+                                    </label>
+                                    <button type="button" class="action secondary" disabled="@saving"
+                                            @onclick="() => PinOnCalendarAsync(verse.Number)">
+                                        Pin on calendar
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
             }
             <p class="scripture-credit">
                 Douay–Rheims Bible, 1899 (Catholic, 73-book edition).
@@ -32,4 +79,104 @@ else
 @code {
     [Parameter] public CatholicPassage? Passage { get; set; }
     [Parameter] public bool Expanded { get; set; }
+    [Parameter] public Guid? DiscussionId { get; set; }
+
+    private int? selectedVerse;
+    private string reflection = "";
+    private string error = "";
+    private bool isAdmin;
+    private bool saving;
+    private DateTime calendarDate = GroupClock.Now.Date;
+    private string? previousReference;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Authentication.GetAuthenticationStateAsync();
+        isAdmin = state.User.IsInRole("Admin");
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (previousReference == Passage?.Reference) return;
+        previousReference = Passage?.Reference;
+        ClosePin();
+    }
+
+    private string VerseReference(int verseNumber)
+    {
+        // Passage references are vetted Luke chapter ranges from the Bible API.
+        var chapter = Passage?.Reference.Split(':')[0] ?? "";
+        return $"{chapter}:{verseNumber}";
+    }
+
+    private void SelectVerse(int number)
+    {
+        selectedVerse = number;
+        reflection = "";
+        error = "";
+        calendarDate = GroupClock.Now.Date;
+    }
+
+    private void ClosePin()
+    {
+        selectedVerse = null;
+        reflection = "";
+        error = "";
+    }
+
+    private async Task ShareInDiscussionAsync(int number)
+    {
+        if (saving || Passage is not { IsAvailable: true }) return;
+        saving = true;
+        error = "";
+        try
+        {
+            var state = await Authentication.GetAuthenticationStateAsync();
+            var reference = VerseReference(number);
+            if (DiscussionId is Guid discussionId)
+            {
+                await Pins.PinToReplyAsync(state.User, discussionId, reference, reflection);
+                Navigation.NavigateTo($"/discussions/{discussionId}", forceLoad: true);
+            }
+            else
+            {
+                var id = await Pins.PinToDiscussionAsync(state.User, reference, reflection);
+                Navigation.NavigateTo($"/discussions/{id}");
+            }
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or ArgumentException
+            or InvalidOperationException or DbUpdateException)
+        {
+            Logger.LogWarning(ex, "Unable to pin Catholic verse in discussion");
+            error = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task PinOnCalendarAsync(int number)
+    {
+        if (saving || !isAdmin || Passage is not { IsAvailable: true }) return;
+        saving = true;
+        error = "";
+        try
+        {
+            var state = await Authentication.GetAuthenticationStateAsync();
+            var id = await Pins.PinToCalendarAsync(
+                state.User, VerseReference(number), calendarDate, reflection);
+            Navigation.NavigateTo($"/events/{id}");
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or ArgumentException
+            or InvalidOperationException or DbUpdateException)
+        {
+            Logger.LogWarning(ex, "Unable to pin Catholic verse on calendar");
+            error = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
 }
