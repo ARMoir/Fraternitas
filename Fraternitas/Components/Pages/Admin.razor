@@ -11,26 +11,51 @@
 </div>
 <div class="dashboard-grid">
     <section class="panel">
-        <h2>Member invitations</h2>
-        <p>Generate a single-use invitation. It expires in seven days. Only the SHA-256 hash is stored, so copy the full link now.</p>
-        <button class="action" @onclick="CreateInvitation">Create invitation link</button>
+        <h2>One link for the whole group</h2>
+        <p>Generate a single invitation link and share it in the group chat. Every man can
+           register his own account using the <strong>same link</strong>, as many times as needed.
+           The invitation expires after seven days, or sooner if you revoke it.</p>
+        <button class="action" @onclick="CreateInvitation">Create group invitation link</button>
         @if (!string.IsNullOrEmpty(invitationUrl))
         {
-            <label>Share this link privately<input readonly value="@invitationUrl" onclick="this.select()" /></label>
-            <p class="muted small">The full link will not be displayed again after leaving this page.</p>
+            <label>Share this invitation URL with the group
+                <input readonly value="@invitationUrl" onclick="this.select()" />
+            </label>
+            <p class="muted small">Copy and save this URL now. For security, only its hash
+                is stored, so the full link cannot be shown again later.</p>
         }
+
+        <h3>Active shared links</h3>
+        @if (activeInvites.Count == 0)
+        {
+            <p class="muted">No active invitation links. Generate one to invite the group.</p>
+        }
+        @foreach (var invitation in activeInvites)
+        {
+            <div class="list-row">
+                <span style="flex: 1">
+                    <strong>Group invitation</strong>
+                    <small>Expires @invitation.ExpiresUtc.ToLocalTime().ToString("MMM d, yyyy · h:mm tt")</small>
+                </span>
+                <button class="danger-button" @onclick="() => RevokeInvitation(invitation.Id)">Revoke</button>
+            </div>
+        }
+        <p class="muted small">Anyone with an active link may join, so share it only with intended members.
+            Revoking stops future registrations, but doesn't remove existing accounts.</p>
     </section>
     <section class="panel">
         <h2>Group overview</h2>
         <p><strong>@memberCount</strong> registered members</p>
         <p><strong>@eventCount</strong> scheduled events</p>
-        <p><strong>@outstandingInvites</strong> outstanding invitations</p>
+        <p><strong>@outstandingInvites</strong> active invitation links</p>
         <a class="action secondary" href="/calendar">Manage calendar</a>
     </section>
 </div>
 
 @code {
     private string invitationUrl = "";
+    private Guid? newlyCreatedInviteId;
+    private List<Invitation> activeInvites = [];
     private int memberCount;
     private int eventCount;
     private int outstandingInvites;
@@ -42,22 +67,45 @@
         await using var db = await DbFactory.CreateDbContextAsync();
         memberCount = await db.Users.CountAsync(u => u.GroupId == 1);
         eventCount = await db.CalendarEvents.CountAsync(e => e.GroupId == 1);
-        outstandingInvites = await db.Invitations.CountAsync(i => i.GroupId == 1
-            && i.RedeemedUtc == null && i.ExpiresUtc > DateTime.UtcNow);
+        activeInvites = await db.Invitations.AsNoTracking()
+            .Where(i => i.GroupId == 1 && i.RedeemedUtc == null && i.ExpiresUtc > DateTime.UtcNow)
+            .OrderBy(i => i.ExpiresUtc).ToListAsync();
+        outstandingInvites = activeInvites.Count;
     }
 
     private async Task CreateInvitation()
     {
         var code = AccountEndpoints.NewToken();
         await using var db = await DbFactory.CreateDbContextAsync();
-        db.Invitations.Add(new Invitation
+        var invitation = new Invitation
         {
             TokenSha256 = AccountEndpoints.Hash(code),
             ExpiresUtc = DateTime.UtcNow.AddDays(7),
             GroupId = 1
-        });
+        };
+        db.Invitations.Add(invitation);
         await db.SaveChangesAsync();
+        newlyCreatedInviteId = invitation.Id;
         invitationUrl = Navigation.ToAbsoluteUri("/account/join?code=" + Uri.EscapeDataString(code)).ToString();
+        await LoadCounts();
+    }
+
+    private async Task RevokeInvitation(Guid invitationId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var invitation = await db.Invitations.FirstOrDefaultAsync(i =>
+            i.Id == invitationId && i.GroupId == 1 && i.RedeemedUtc == null);
+        if (invitation is null) return;
+
+        // Reuse the legacy RedeemedUtc field as a deactivation marker.
+        // Avoid an EF schema change for existing installed SQLite databases.
+        invitation.RedeemedUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        if (newlyCreatedInviteId == invitationId)
+        {
+            invitationUrl = "";
+            newlyCreatedInviteId = null;
+        }
         await LoadCounts();
     }
 }
