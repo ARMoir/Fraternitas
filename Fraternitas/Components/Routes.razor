@@ -1,0 +1,20 @@
+<Router AppAssembly="@typeof(Program).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+            <NotAuthorized>
+                <div class="panel">
+                    <h1>Members only</h1>
+                    <p>Sign in with your invitation-based account to see group meetings, documents and discussions.</p>
+                    <a class="action" href="/account/login">Sign in</a>
+                </div>
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <h1>Page not found</h1>
+            <a href="/">Return home</a>
+        </LayoutView>
+    </NotFound>
+</Router>

@@ -1,0 +1,63 @@
+@page "/admin"
+@attribute [Authorize(Roles = "Admin")]
+@inject IDbContextFactory<FraternityDb> DbFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Administration | Fraternitas</PageTitle>
+<div class="page-head">
+    <div class="eyebrow">ADMINISTRATION</div>
+    <h1>Manage the group</h1>
+    <p>Invite members and manage the group's calendar.</p>
+</div>
+<div class="dashboard-grid">
+    <section class="panel">
+        <h2>Member invitations</h2>
+        <p>Generate a single-use invitation. It expires in seven days. Only the SHA-256 hash is stored, so copy the full link now.</p>
+        <button class="action" @onclick="CreateInvitation">Create invitation link</button>
+        @if (!string.IsNullOrEmpty(invitationUrl))
+        {
+            <label>Share this link privately<input readonly value="@invitationUrl" onclick="this.select()" /></label>
+            <p class="muted small">The full link will not be displayed again after leaving this page.</p>
+        }
+    </section>
+    <section class="panel">
+        <h2>Group overview</h2>
+        <p><strong>@memberCount</strong> registered members</p>
+        <p><strong>@eventCount</strong> scheduled events</p>
+        <p><strong>@outstandingInvites</strong> outstanding invitations</p>
+        <a class="action secondary" href="/calendar">Manage calendar</a>
+    </section>
+</div>
+
+@code {
+    private string invitationUrl = "";
+    private int memberCount;
+    private int eventCount;
+    private int outstandingInvites;
+
+    protected override async Task OnInitializedAsync() => await LoadCounts();
+
+    private async Task LoadCounts()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        memberCount = await db.Users.CountAsync(u => u.GroupId == 1);
+        eventCount = await db.CalendarEvents.CountAsync(e => e.GroupId == 1);
+        outstandingInvites = await db.Invitations.CountAsync(i => i.GroupId == 1
+            && i.RedeemedUtc == null && i.ExpiresUtc > DateTime.UtcNow);
+    }
+
+    private async Task CreateInvitation()
+    {
+        var code = AccountEndpoints.NewToken();
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.Invitations.Add(new Invitation
+        {
+            TokenSha256 = AccountEndpoints.Hash(code),
+            ExpiresUtc = DateTime.UtcNow.AddDays(7),
+            GroupId = 1
+        });
+        await db.SaveChangesAsync();
+        invitationUrl = Navigation.ToAbsoluteUri("/account/join?code=" + Uri.EscapeDataString(code)).ToString();
+        await LoadCounts();
+    }
+}

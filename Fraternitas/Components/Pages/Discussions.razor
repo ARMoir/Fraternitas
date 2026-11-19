@@ -1,0 +1,70 @@
+@page "/discussions"
+@attribute [Authorize]
+@inject IDbContextFactory<FraternityDb> DbFactory
+@inject AuthenticationStateProvider Authentication
+@inject NavigationManager Navigation
+
+<PageTitle>Discussions | Fraternitas</PageTitle>
+<div class="page-head">
+    <div class="eyebrow">FRATERNITY</div>
+    <h1>Group discussions</h1>
+    <p>Scripture reflections, prayer intentions and conversation between meetings.</p>
+</div>
+
+<section class="panel">
+    <h2>Start a discussion</h2>
+    <label>Topic<input maxlength="150" @bind="title" placeholder="What would you like to discuss?" /></label>
+    <label>Your message<textarea rows="4" maxlength="6000" @bind="body"></textarea></label>
+    @if (!string.IsNullOrEmpty(error)) { <p class="error">@error</p> }
+    <button class="action" @onclick="CreateDiscussion">Post discussion</button>
+</section>
+
+<section class="panel">
+    <div class="section-head"><h2>Recent conversations</h2><span class="muted">@posts.Count topics</span></div>
+    @if (posts.Count == 0) { <p class="muted">Be the first to share a reflection with the group.</p> }
+    @foreach (var post in posts)
+    {
+        <a class="discussion-row" href="@($"/discussions/{post.Id}")">
+            <div><strong>@post.Title</strong>
+                <p>@(post.Body.Length > 230 ? post.Body[..230] + "…" : post.Body)</p>
+                <small>@(post.Author?.DisplayName ?? "Member") · @post.CreatedUtc.ToLocalTime().ToString("MMM d, yyyy · h:mm tt")
+                    · @post.Replies.Count replies</small></div>
+            <span aria-hidden="true">›</span>
+        </a>
+    }
+</section>
+
+@code {
+    private List<Discussion> posts = [];
+    private string title = "";
+    private string body = "";
+    private string error = "";
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        posts = await db.Discussions.AsNoTracking().Include(d => d.Author).Include(d => d.Replies)
+            .Where(d => d.GroupId == 1).OrderByDescending(d => d.CreatedUtc).Take(100).ToListAsync();
+    }
+
+    private async Task CreateDiscussion()
+    {
+        error = "";
+        if (string.IsNullOrWhiteSpace(title) || title.Length > 150 ||
+            string.IsNullOrWhiteSpace(body) || body.Length > 6000)
+        {
+            error = "Enter a topic and a message.";
+            return;
+        }
+        var auth = await Authentication.GetAuthenticationStateAsync();
+        var userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId)) { error = "Sign in to post."; return; }
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var post = new Discussion { Title = title.Trim(), Body = body.Trim(), AuthorId = userId };
+        db.Discussions.Add(post);
+        await db.SaveChangesAsync();
+        Navigation.NavigateTo($"/discussions/{post.Id}");
+    }
+}

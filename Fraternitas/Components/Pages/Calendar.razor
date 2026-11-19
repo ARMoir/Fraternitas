@@ -1,0 +1,228 @@
+@page "/calendar"
+@attribute [Authorize]
+@inject IDbContextFactory<FraternityDb> DbFactory
+@inject AuthenticationStateProvider Authentication
+@inject NavigationManager Navigation
+
+<PageTitle>Calendar | Fraternitas</PageTitle>
+<div class="page-head">
+    <div class="eyebrow">GROUP CALENDAR</div>
+    <h1>Our shared calendar</h1>
+    <p>Meetings, fasting days, scripture gatherings and fellowship. All times are Eastern.</p>
+</div>
+<div class="panel calendar-panel">
+    @if (isAdmin)
+    {
+        <button class="action compact" @onclick="NewEvent">+ Add event</button>
+    }
+    <RadzenScheduler @ref="scheduler" TItem="CalendarEvent" Data="@events" StartProperty="StartLocal"
+                     EndProperty="EndLocal" TextProperty="Title" SelectedIndex="2"
+                     SlotSelect="@SlotSelected" AppointmentSelect="@AppointmentSelected"
+                     AppointmentRender="@RenderAppointment" AppointmentMove="@AppointmentMoved"
+                     Style="height:720px;">
+        <RadzenDayView />
+        <RadzenWeekView />
+        <RadzenMonthView />
+    </RadzenScheduler>
+</div>
+
+@if (isAdmin && isEditing)
+{
+    <div class="modal-backdrop-custom">
+        <section class="editor panel" role="dialog" aria-modal="true" aria-label="Edit calendar event">
+            <div class="section-head"><h2>@(draft.Id.HasValue ? "Edit event" : "New event")</h2>
+                <button class="plain-button" @onclick="CloseEditor" aria-label="Close">✕</button></div>
+            <label>Title<input maxlength="150" @bind="draft.Title" placeholder="e.g. Week 1 · The Annunciation" /></label>
+            <div class="two-columns">
+                <label>Start (Eastern)<input type="datetime-local" @bind="draft.StartLocal" @bind:format="yyyy-MM-ddTHH:mm" /></label>
+                <label>End (Eastern)<input type="datetime-local" @bind="draft.EndLocal" @bind:format="yyyy-MM-ddTHH:mm" /></label>
+            </div>
+            <label>Type<select @bind="draft.Category">
+                <option>Meeting</option><option>Fasting</option><option>Prayer</option>
+                <option>Fellowship</option><option>Other</option>
+            </select></label>
+            <label>Reading<select @bind="draft.ReadingId">
+                <option value="">None</option>
+                @foreach (var r in readings) { <option value="@r.Id">@r.Title</option> }
+            </select></label>
+            <label>Scripture reference<input maxlength="100" @bind="draft.Scripture" placeholder="Luke 1:26–38" /></label>
+            <label>Zoom or meeting link<input type="url" maxlength="1000" @bind="draft.MeetingUrl" placeholder="https://..." /></label>
+            <label>Description<textarea rows="4" maxlength="5000" @bind="draft.Description"></textarea></label>
+            @if (!string.IsNullOrEmpty(error)) { <p class="error">@error</p> }
+            <div class="button-row">
+                <button class="action" @onclick="SaveEvent">Save event</button>
+                @if (draft.Id.HasValue) { <button class="danger-button" @onclick="DeleteEvent">Delete</button> }
+                <button class="action secondary" @onclick="CloseEditor">Cancel</button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private RadzenScheduler<CalendarEvent>? scheduler;
+    private List<CalendarEvent> events = [];
+    private List<Reading> readings = [];
+    private EventEditor draft = new();
+    private bool isAdmin;
+    private bool isEditing;
+    private string error = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await Authentication.GetAuthenticationStateAsync();
+        isAdmin = state.User.IsInRole("Admin");
+        await using var db = await DbFactory.CreateDbContextAsync();
+        readings = await db.Readings.AsNoTracking().OrderBy(r => r.Week).ToListAsync();
+        await ReloadEvents();
+    }
+
+    private async Task ReloadEvents()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        events = await db.CalendarEvents.AsNoTracking().Where(e => e.GroupId == 1)
+            .OrderBy(e => e.StartLocal).ToListAsync();
+        if (scheduler is not null) await scheduler.Reload();
+    }
+
+    private void NewEvent()
+    {
+        if (!isAdmin) return;
+        var start = GroupClock.Now.Date.AddHours(20);
+        draft = new() { StartLocal = start, EndLocal = start.AddHours(1) };
+        error = "";
+        isEditing = true;
+    }
+
+    private void SlotSelected(SchedulerSlotSelectEventArgs args)
+    {
+        if (!isAdmin) return;
+        draft = new() { StartLocal = args.Start, EndLocal = args.End > args.Start ? args.End : args.Start.AddHours(1) };
+        error = "";
+        isEditing = true;
+    }
+
+    private void AppointmentSelected(SchedulerAppointmentSelectEventArgs<CalendarEvent> args)
+    {
+        if (!isAdmin)
+        {
+            Navigation.NavigateTo($"/events/{args.Data.Id}");
+            return;
+        }
+        draft = new EventEditor
+        {
+            Id = args.Data.Id, Title = args.Data.Title, StartLocal = args.Data.StartLocal,
+            EndLocal = args.Data.EndLocal, Category = args.Data.Category,
+            Scripture = args.Data.Scripture, Description = args.Data.Description,
+            MeetingUrl = args.Data.MeetingUrl, ReadingId = args.Data.ReadingId
+        };
+        error = "";
+        isEditing = true;
+    }
+
+    private void RenderAppointment(SchedulerAppointmentRenderEventArgs<CalendarEvent> args)
+    {
+        var color = args.Data.Category switch
+        {
+            "Fasting" => "#a26830",
+            "Prayer" => "#536b9a",
+            "Fellowship" => "#845e88",
+            "Other" => "#687970",
+            _ => "#245d4b"
+        };
+        args.Attributes["style"] = $"background-color:{color};border-color:{color};";
+    }
+
+    private async Task AppointmentMoved(SchedulerAppointmentMoveEventArgs args)
+    {
+        var moved = args.Appointment.Data as CalendarEvent;
+        if (!isAdmin || moved is null)
+        {
+            if (scheduler is not null) await scheduler.Reload();
+            return;
+        }
+        var duration = moved.EndLocal - moved.StartLocal;
+        var newStart = args.SlotDate.TimeOfDay == TimeSpan.Zero
+            ? args.SlotDate.Date.Add(moved.StartLocal.TimeOfDay) : args.SlotDate;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var ev = await db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == moved.Id && e.GroupId == 1);
+        if (ev is null) return;
+        ev.StartLocal = newStart;
+        ev.EndLocal = newStart + duration;
+        await db.SaveChangesAsync();
+        await ReloadEvents();
+    }
+
+    private async Task SaveEvent()
+    {
+        if (!isAdmin) return;
+        error = "";
+        if (string.IsNullOrWhiteSpace(draft.Title) || draft.Title.Length > 150
+            || draft.EndLocal <= draft.StartLocal)
+        {
+            error = "Enter a title and an end time after the start time.";
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(draft.MeetingUrl)
+            && (!Uri.TryCreate(draft.MeetingUrl, UriKind.Absolute, out var url)
+                || (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps)))
+        {
+            error = "The meeting link must be a valid http(s) URL.";
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var ev = draft.Id.HasValue
+            ? await db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == draft.Id.Value && e.GroupId == 1)
+            : null;
+        if (ev is null)
+        {
+            ev = new CalendarEvent();
+            db.CalendarEvents.Add(ev);
+        }
+        ev.Title = draft.Title.Trim();
+        ev.StartLocal = draft.StartLocal;
+        ev.EndLocal = draft.EndLocal;
+        ev.Category = draft.Category;
+        ev.Scripture = draft.Scripture.Trim();
+        ev.Description = draft.Description.Trim();
+        ev.MeetingUrl = draft.MeetingUrl.Trim();
+        ev.ReadingId = draft.ReadingId;
+        await db.SaveChangesAsync();
+        isEditing = false;
+        await ReloadEvents();
+    }
+
+    private async Task DeleteEvent()
+    {
+        if (!isAdmin || !draft.Id.HasValue) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var ev = await db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == draft.Id.Value && e.GroupId == 1);
+        if (ev is not null)
+        {
+            // Keep attached discussions and files, but detach them before removal.
+            foreach (var post in await db.Discussions.Where(p => p.EventId == ev.Id).ToListAsync())
+                post.EventId = null;
+            foreach (var doc in await db.SharedDocuments.Where(d => d.EventId == ev.Id).ToListAsync())
+                doc.EventId = null;
+            db.CalendarEvents.Remove(ev);
+            await db.SaveChangesAsync();
+        }
+        isEditing = false;
+        await ReloadEvents();
+    }
+
+    private void CloseEditor() => isEditing = false;
+
+    private sealed class EventEditor
+    {
+        public Guid? Id { get; set; }
+        public string Title { get; set; } = "";
+        public DateTime StartLocal { get; set; }
+        public DateTime EndLocal { get; set; }
+        public string Category { get; set; } = "Meeting";
+        public string Description { get; set; } = "";
+        public string Scripture { get; set; } = "";
+        public string MeetingUrl { get; set; } = "";
+        public int? ReadingId { get; set; }
+    }
+}

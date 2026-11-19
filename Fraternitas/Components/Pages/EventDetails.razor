@@ -1,0 +1,69 @@
+@page "/events/{Id:guid}"
+@attribute [Authorize]
+@inject IDbContextFactory<FraternityDb> DbFactory
+
+<PageTitle>Event | Fraternitas</PageTitle>
+@if (ev is null)
+{
+    <div class="panel"><h1>Event not found</h1><a href="/calendar">Calendar</a></div>
+}
+else
+{
+    <div class="page-head">
+        <div class="eyebrow">@ev.Category.ToUpperInvariant()</div>
+        <h1>@ev.Title</h1>
+        <p>@ev.StartLocal.ToString("dddd, MMMM d, yyyy · h:mm tt") – @ev.EndLocal.ToString("h:mm tt") Eastern</p>
+        <div class="button-row">
+            <a class="action" href="@($"/events/{ev.Id}/calendar.ics")">Add to my calendar</a>
+            @if (!string.IsNullOrWhiteSpace(ev.MeetingUrl))
+            {
+                <a class="action secondary" href="@ev.MeetingUrl" target="_blank" rel="noopener noreferrer">Join meeting</a>
+            }
+        </div>
+    </div>
+    <div class="dashboard-grid">
+        <section class="panel">
+            <h2>Meeting details</h2>
+            @if (!string.IsNullOrWhiteSpace(ev.Description)) { <p class="pre-line">@ev.Description</p> }
+            @if (!string.IsNullOrWhiteSpace(ev.Scripture)) { <p><strong>Scripture:</strong> @ev.Scripture</p> }
+            @if (ev.Reading is not null)
+            {
+                <h3>@ev.Reading.Title</h3>
+                <p>@ev.Reading.Scripture</p>
+                <p>Read three times: What stands out? What deeper meaning emerges? How will you respond?</p>
+                <a href="/readings">View the reading guide</a>
+            }
+            <p class="muted">Close with one decade of the Rosary.</p>
+        </section>
+        <section class="panel">
+            <h2>Event documents</h2>
+            @if (documents.Count == 0) { <p class="muted">No files attached yet.</p> }
+            @foreach (var doc in documents)
+            {
+                <a class="list-row" href="@($"/resources/file/{doc.Id}")">
+                    <span class="number">↓</span><span><strong>@doc.FileName</strong><small>@(doc.Length / 1024) KB</small></span>
+                </a>
+            }
+            <a href="/documents">Upload or browse documents</a>
+        </section>
+    </div>
+    <section class="panel">
+        <h2>Reflections and fraternity</h2>
+        <p>Share your thoughts, prayer intentions and questions with the group.</p>
+        <a class="action secondary" href="/discussions">Open discussions</a>
+    </section>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private CalendarEvent? ev;
+    private List<SharedDocument> documents = [];
+    protected override async Task OnParametersSetAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        ev = await db.CalendarEvents.AsNoTracking().Include(x => x.Reading)
+            .FirstOrDefaultAsync(x => x.Id == Id && x.GroupId == 1);
+        documents = await db.SharedDocuments.AsNoTracking()
+            .Where(d => d.GroupId == 1 && d.EventId == Id).OrderBy(d => d.FileName).ToListAsync();
+    }
+}

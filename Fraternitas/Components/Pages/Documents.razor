@@ -1,0 +1,109 @@
+@page "/documents"
+@attribute [Authorize]
+@inject IDbContextFactory<FraternityDb> DbFactory
+@inject AuthenticationStateProvider Authentication
+@inject DataStorage Storage
+
+<PageTitle>Documents | Fraternitas</PageTitle>
+<div class="page-head">
+    <div class="eyebrow">SHARED RESOURCES</div>
+    <h1>Group documents</h1>
+    <p>Prayer guides, scripture notes and PDFs shared by members. Files are accessible only to signed-in members.</p>
+</div>
+<section class="panel">
+    <h2>Upload a document</h2>
+    <label>Attach to meeting (optional)
+        <select @bind="eventId">
+            <option value="">General resource</option>
+            @foreach (var ev in events) { <option value="@ev.Id">@ev.Title (@ev.StartLocal.ToString("MMM d"))</option> }
+        </select>
+    </label>
+    <InputFile OnChange="@Upload" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg" />
+    <p class="muted small">PDF, Word (.docx), plain text and images only. Maximum 10 MB.</p>
+    @if (!string.IsNullOrWhiteSpace(status)) { <p role="status">@status</p> }
+</section>
+<section class="panel">
+    <div class="section-head"><h2>Resource library</h2><span class="muted">@documents.Count files</span></div>
+    @if (documents.Count == 0) { <p class="muted">No files yet. Kevin's Examen prayer PDF can be uploaded here.</p> }
+    @foreach (var doc in documents)
+    {
+        <a class="list-row" href="@($"/resources/file/{doc.Id}")">
+            <span class="number">↓</span>
+            <span><strong>@doc.FileName</strong>
+                <small>@(doc.Event?.Title ?? "General resource") · @(doc.UploadedBy?.DisplayName ?? "Member")
+                    · @doc.UploadedUtc.ToLocalTime().ToString("MMM d, yyyy") · @(doc.Length / 1024) KB</small></span>
+        </a>
+    }
+</section>
+
+@code {
+    private const long MaxBytes = 10 * 1024 * 1024;
+    private static readonly HashSet<string> Allowed = new(StringComparer.OrdinalIgnoreCase)
+        { ".pdf", ".docx", ".txt", ".png", ".jpg", ".jpeg" };
+    private List<SharedDocument> documents = [];
+    private List<CalendarEvent> events = [];
+    private Guid? eventId;
+    private string status = "";
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        documents = await db.SharedDocuments.AsNoTracking().Include(d => d.Event)
+            .Include(d => d.UploadedBy).Where(d => d.GroupId == 1)
+            .OrderByDescending(d => d.UploadedUtc).Take(200).ToListAsync();
+        events = await db.CalendarEvents.AsNoTracking().Where(e => e.GroupId == 1)
+            .OrderByDescending(e => e.StartLocal).ToListAsync();
+    }
+
+    private async Task Upload(InputFileChangeEventArgs args)
+    {
+        status = "";
+        var file = args.File;
+        var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+        if (!Allowed.Contains(extension) || file.Size is <= 0 or > MaxBytes)
+        {
+            status = "Unsupported file type or file exceeds the 10 MB limit.";
+            return;
+        }
+        var auth = await Authentication.GetAuthenticationStateAsync();
+        var userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId)) { status = "Sign in before uploading."; return; }
+
+        var stored = Guid.NewGuid().ToString("N") + extension;
+        var filePath = Path.Combine(Storage.DocumentsDirectory, stored);
+        try
+        {
+            await using (var output = File.Create(filePath))
+            await using (var input = file.OpenReadStream(MaxBytes))
+                await input.CopyToAsync(output);
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            // Only attach a resource to an event that belongs to this group.
+            var linkedEvent = eventId.HasValue && await db.CalendarEvents.AnyAsync(e => e.Id == eventId && e.GroupId == 1)
+                ? eventId : null;
+            db.SharedDocuments.Add(new SharedDocument
+            {
+                FileName = Path.GetFileName(file.Name)[..Math.Min(180, Path.GetFileName(file.Name).Length)],
+                ContentType = extension switch
+                {
+                    ".pdf" => "application/pdf",
+                    ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    ".txt" => "text/plain",
+                    ".png" => "image/png",
+                    _ => "image/jpeg"
+                },
+                StoredName = stored, Length = file.Size, UploadedById = userId, EventId = linkedEvent
+            });
+            await db.SaveChangesAsync();
+            status = "Document uploaded.";
+            await Reload();
+        }
+        catch (Exception)
+        {
+            if (File.Exists(filePath)) File.Delete(filePath);
+            status = "Upload failed. Please try again.";
+        }
+    }
+}

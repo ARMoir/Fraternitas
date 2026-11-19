@@ -1,0 +1,35 @@
+@page "/readings"
+@attribute [Authorize]
+@inject IDbContextFactory<FraternityDb> DbFactory
+
+<PageTitle>Readings | Fraternitas</PageTitle>
+<div class="page-head">
+    <div class="eyebrow">LECTIO DIVINA</div>
+    <h1>The Five Joyful Mysteries</h1>
+    <p>Read each passage three times, moving from observation to meaning to personal application.</p>
+</div>
+
+@foreach (var reading in readings)
+{
+    <section class="panel reading">
+        <div class="eyebrow">WEEK @reading.Week</div>
+        <h2>@reading.Title</h2>
+        <p class="scripture">@reading.Scripture</p>
+        <p>@reading.Summary</p>
+        <div class="prompts">
+            <div><strong>First reading · Listen</strong><p>What words, images or details stand out?</p></div>
+            <div><strong>Second reading · Reflect</strong><p>What deeper meaning is God revealing in this passage?</p></div>
+            <div><strong>Third reading · Respond</strong><p>How does this speak to my life, and how will I respond?</p></div>
+        </div>
+        <p class="muted small">Close the gathering with one decade of the Rosary.</p>
+    </section>
+}
+
+@code {
+    private List<Reading> readings = [];
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        readings = await db.Readings.AsNoTracking().OrderBy(r => r.Week).ToListAsync();
+    }
+}

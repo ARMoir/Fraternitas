@@ -1,0 +1,72 @@
+@page "/discussions/{Id:guid}"
+@attribute [Authorize]
+@inject IDbContextFactory<FraternityDb> DbFactory
+@inject AuthenticationStateProvider Authentication
+
+<PageTitle>Discussion | Fraternitas</PageTitle>
+@if (post is null)
+{
+    <section class="panel"><h1>Discussion not found</h1><a href="/discussions">Back</a></section>
+}
+else
+{
+    <div class="page-head">
+        <div class="eyebrow">GROUP DISCUSSION</div>
+        <h1>@post.Title</h1>
+        <p>Started by @(post.Author?.DisplayName ?? "Member") · @post.CreatedUtc.ToLocalTime().ToString("MMM d, yyyy")</p>
+    </div>
+    <section class="panel">
+        <p class="pre-line">@post.Body</p>
+    </section>
+    <section class="panel">
+        <h2>Replies (@post.Replies.Count)</h2>
+        @foreach (var reply in post.Replies.OrderBy(r => r.CreatedUtc))
+        {
+            <div class="reply">
+                <div class="reply-meta"><strong>@(reply.Author?.DisplayName ?? "Member")</strong>
+                    <small>@reply.CreatedUtc.ToLocalTime().ToString("MMM d, h:mm tt")</small></div>
+                <p class="pre-line">@reply.Body</p>
+            </div>
+        }
+        <h3>Add a reply</h3>
+        <label>Your response<textarea rows="4" maxlength="3000" @bind="message"></textarea></label>
+        @if (!string.IsNullOrEmpty(error)) { <p class="error">@error</p> }
+        <div class="button-row"><button class="action" @onclick="AddReply">Reply</button>
+            <a class="action secondary" href="/discussions">All discussions</a></div>
+    </section>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private Discussion? post;
+    private string message = "";
+    private string error = "";
+
+    protected override async Task OnParametersSetAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        post = await db.Discussions.AsNoTracking().Include(d => d.Author)
+            .Include(d => d.Replies).ThenInclude(r => r.Author)
+            .FirstOrDefaultAsync(d => d.Id == Id && d.GroupId == 1);
+    }
+
+    private async Task AddReply()
+    {
+        error = "";
+        if (post is null || string.IsNullOrWhiteSpace(message) || message.Length > 3000)
+        {
+            error = "Enter a reply before posting.";
+            return;
+        }
+        var auth = await Authentication.GetAuthenticationStateAsync();
+        var userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId)) { error = "Sign in to reply."; return; }
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.Replies.Add(new Reply { DiscussionId = post.Id, AuthorId = userId, Body = message.Trim() });
+        await db.SaveChangesAsync();
+        message = "";
+        await Reload();
+    }
+}

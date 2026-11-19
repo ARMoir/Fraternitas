@@ -1,0 +1,85 @@
+@page "/"
+@attribute [Authorize]
+@inject IDbContextFactory<FraternityDb> DbFactory
+
+<PageTitle>Home | Fraternitas</PageTitle>
+
+<section class="hero">
+    <div class="eyebrow">MEN OF ADVENT</div>
+    <h1>Grow in faith. Walk together.</h1>
+    <p>A place for prayer, scripture, accountability and fraternity throughout Advent and beyond.</p>
+    <div class="hero-actions">
+        <a class="action" href="/calendar">View calendar</a>
+        <a class="action secondary" href="/discussions">Join the conversation</a>
+    </div>
+</section>
+
+<div class="dashboard-grid">
+    <section class="panel">
+        <div class="section-head"><h2>Upcoming gatherings</h2><a href="/calendar">Full calendar</a></div>
+        @if (upcoming.Count == 0)
+        {
+            <p class="muted">No meetings have been scheduled yet. An administrator can add confirmed dates on the calendar.</p>
+        }
+        @foreach (var ev in upcoming)
+        {
+            <a class="event-row" href="@($"/events/{ev.Id}")">
+                <span class="date-tile"><strong>@ev.StartLocal.ToString("dd")</strong><small>@ev.StartLocal.ToString("MMM")</small></span>
+                <span><strong>@ev.Title</strong><small>@ev.StartLocal.ToString("ddd, h:mm tt") ET · @ev.Category</small></span>
+            </a>
+        }
+    </section>
+    <section class="panel">
+        <div class="section-head"><h2>Our commitments</h2><span class="subtle">Daily & weekly</span></div>
+        <div class="commitment"><span>☀</span><div><strong>Silent prayer</strong><p>20 minutes each day, prioritizing quiet and listening.</p></div></div>
+        <div class="commitment"><span>✝</span><div><strong>Daily Examen</strong><p>Reflect on God's presence and your response to grace.</p></div></div>
+        <div class="commitment"><span>◷</span><div><strong>Wednesday & Friday fasting</strong><p>Keep the group's fasting commitments; meatless Wednesdays.</p></div></div>
+        <p class="muted small">These commitments are personal. Fraternitas doesn't collect compliance reports.</p>
+    </section>
+</div>
+
+<div class="dashboard-grid">
+    <section class="panel">
+        <div class="section-head"><h2>The Joyful Mysteries</h2><a href="/readings">All readings</a></div>
+        @foreach (var reading in readings)
+        {
+            <a class="list-row" href="/readings">
+                <span class="number">@reading.Week</span>
+                <span><strong>@reading.Title</strong><small>@reading.Scripture</small></span>
+            </a>
+        }
+    </section>
+    <section class="panel">
+        <div class="section-head"><h2>Recent discussion</h2><a href="/discussions">All posts</a></div>
+        @if (discussions.Count == 0)
+        {
+            <p class="muted">Start a conversation or share a reflection from this week's scripture.</p>
+        }
+        @foreach (var post in discussions)
+        {
+            <a class="list-row" href="@($"/discussions/{post.Id}")">
+                <span class="number">✦</span>
+                <span><strong>@post.Title</strong><small>@post.Author?.DisplayName · @post.CreatedUtc.ToLocalTime().ToString("MMM d")</small></span>
+            </a>
+        }
+    </section>
+</div>
+
+@code {
+    private List<CalendarEvent> upcoming = [];
+    private List<Reading> readings = [];
+    private List<Discussion> discussions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var today = GroupClock.Now.Date;
+        upcoming = await db.CalendarEvents.AsNoTracking()
+            .Where(e => e.GroupId == 1 && e.EndLocal >= today)
+            .OrderBy(e => e.StartLocal).Take(5).ToListAsync();
+        readings = await db.Readings.AsNoTracking().OrderBy(r => r.Week).ToListAsync();
+        discussions = await db.Discussions.AsNoTracking().Include(p => p.Author)
+            .Where(p => p.GroupId == 1).OrderByDescending(p => p.CreatedUtc)
+            .Take(5).ToListAsync();
+    }
+}

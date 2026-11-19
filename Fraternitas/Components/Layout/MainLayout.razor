@@ -1,0 +1,20 @@
+@inherits LayoutComponentBase
+
+<div class="site">
+    <header class="topbar">
+        <div class="topinner">
+            <a href="/" class="brand"><span class="brand-cross">✝</span> FRATERNITAS</a>
+            <nav aria-label="Main navigation">
+                <a href="/">Home</a>
+                <a href="/calendar">Calendar</a>
+                <a href="/readings">Readings</a>
+                <a href="/discussions">Discussions</a>
+                <a href="/documents">Documents</a>
+                <AuthorizeView Roles="Admin"><a href="/admin">Admin</a></AuthorizeView>
+            </nav>
+            <a class="signout" href="/account/logout">Sign out</a>
+        </div>
+    </header>
+    <main class="main">@Body</main>
+    <footer class="footer">Prayer · Asceticism · Fraternity <span>Fraternitas</span></footer>
+</div>
