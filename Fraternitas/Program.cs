@@ -4,6 +4,7 @@ using Fraternitas.Data;
 using Fraternitas.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Radzen;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,9 +45,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 builder.Services.AddAuthorization();
-builder.Services.AddScoped<Radzen.DialogService>();
-builder.Services.AddScoped<Radzen.NotificationService>();
-builder.Services.AddScoped<Radzen.TooltipService>();
+builder.Services.AddRadzenComponents();
 
 var app = builder.Build();
 await DatabaseSetup.InitializeAsync(app.Services, app.Logger);
