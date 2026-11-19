@@ -60,6 +60,7 @@ builder.Services.AddHttpClient<CatholicBibleService>(client =>
     client.BaseAddress = new Uri("https://bible.helloao.org/");
     client.Timeout = TimeSpan.FromSeconds(12);
 });
+builder.Services.AddScoped<ScripturePinService>();
 builder.Services.AddAuthorization();
 builder.Services.AddRadzenComponents();
 
