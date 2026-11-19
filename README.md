@@ -87,6 +87,22 @@ An administrator can edit or delete entries using the calendar. The importer doe
 
 **Event calendar entries are not push notifications.** Email/SMS reminders and subscriptions are future features.
 
+## Catholic Scripture readings (HelloAO)
+
+The five Joyful Mystery **Lectio Divina** passages appear on **Readings** and their meeting detail pages. Scripture is fetched at runtime from the [HelloAO Free Use Bible API](https://bible.helloao.org/docs/guide/getting-started.html) using the **Douay–Rheims Bible (1899, English, Catholic)** (`eng_dra`), with verse numbers and source attribution.
+
+**Catholic canon guarantee:** Before accepting any Scripture passage, the server requests `/api/eng_dra/books.json` and verifies the **73 books**, including Tobit, Judith, Wisdom, Sirach, Baruch, 1 Maccabees, and 2 Maccabees. This check uses the actual book inventory, not HelloAO's translation-list summary (which currently misreports 66 books for this edition). The program **never silently switches to a Protestant Bible**.
+
+The live Gospel passages are Luke 1:26–38, Luke 1:39–56, Luke 2:1–20, Luke 2:22–38, and Luke 2:41–52. The API response is cached in server memory for 24 hours. If HelloAO is unavailable or a chapter is incomplete, the page keeps the Scripture reference and a clear error instead of showing an unverified passage. The public domain Douay–Rheims text is for study and group prayer.
+
+To verify all five passages and the Catholic canon from the command line:
+
+```powershell
+dotnet run --project .\Fraternitas\Fraternitas.csproj -- verify-scripture
+```
+
+This is **not a Catholic daily Mass lectionary**; it retrieves the five specific Gospel passages chosen for the group's Advent Lectio Divina. For Mass readings, a separate approved lectionary source is needed.
+
 ## Tech & roadmap
 
 - `Fraternitas/Data`: EF/Identity models and initial seed
