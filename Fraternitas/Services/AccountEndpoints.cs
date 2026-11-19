@@ -128,21 +128,26 @@ public static class AccountEndpoints
     public static string Hash(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
-    private static string Page(string title, string body) => $"""
-        <!doctype html><html lang="en"><head><meta charset="utf-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>{WebUtility.HtmlEncode(title)} | Fraternitas</title>
-        <style>
-          body{{font:16px system-ui,sans-serif;background:#f7f4ee;color:#23372f;min-height:100vh;
-            display:grid;place-items:center;margin:0;padding:1rem}}
-          main{{max-width:410px;width:100%;padding:2rem;background:white;border:1px solid #e2ded3;
-            border-radius:16px;box-shadow:0 10px 35px #0001}}
-          label{{display:block;font-weight:600;margin:1rem 0}}input{{display:block;box-sizing:border-box;
-            width:100%;padding:.85rem;border:1px solid #ccc;border-radius:8px;margin-top:.35rem;font:inherit}}
-          button{{background:#244c40;color:white;border:0;padding:.85rem 1.3rem;border-radius:8px;
-            font-weight:700;cursor:pointer;font:inherit;width:100%}}a{{color:#244c40}}
-          .muted{{color:#69756d;font-size:.85rem}}.error{{color:#9b2424}}
-        </style></head><body><main><p style="font-weight:700;letter-spacing:.12em">✝ FRATERNITAS</p>
-        {body}</main></body></html>
-        """;
+    private static string Page(string title, string body)
+    {
+        const string template = """
+            <!doctype html><html lang="en"><head><meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>__TITLE__ | Fraternitas</title>
+            <style>
+              body{font:16px system-ui,sans-serif;background:#f7f4ee;color:#23372f;min-height:100vh;
+                display:grid;place-items:center;margin:0;padding:1rem}
+              main{max-width:410px;width:100%;padding:2rem;background:white;border:1px solid #e2ded3;
+                border-radius:16px;box-shadow:0 10px 35px #0001}
+              label{display:block;font-weight:600;margin:1rem 0}input{display:block;box-sizing:border-box;
+                width:100%;padding:.85rem;border:1px solid #ccc;border-radius:8px;margin-top:.35rem;font:inherit}
+              button{background:#244c40;color:white;border:0;padding:.85rem 1.3rem;border-radius:8px;
+                font-weight:700;cursor:pointer;font:inherit;width:100%}a{color:#244c40}
+              .muted{color:#69756d;font-size:.85rem}.error{color:#9b2424}
+            </style></head><body><main><p style="font-weight:700;letter-spacing:.12em">✝ FRATERNITAS</p>
+            __BODY__</main></body></html>
+            """;
+        return template.Replace("__TITLE__", WebUtility.HtmlEncode(title))
+            .Replace("__BODY__", body);
+    }
 }
