@@ -99,3 +99,12 @@ textarea{resize:vertical;line-height:1.5}.two-columns{display:grid;grid-template
 .verse-pin-actions button:disabled{opacity:.6;cursor:wait}
 .verse-reply-link{margin:1rem 0}
 @media(max-width:560px){.scripture-verse-row{gap:.35rem}.verse-pin-button{font-size:.7rem;padding:.3rem .4rem}.verse-pin-actions .action{width:100%}.verse-pin-date{max-width:none;width:100%}}
+
+/* Member access: everyone is an admin until intentionally marked Member only. */
+.member-access-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.8rem 0;border-top:1px solid #e8ede6}
+.member-access-identity{display:flex;flex-direction:column;gap:.2rem;min-width:0;overflow-wrap:anywhere}
+.member-access-identity small{color:#77867b;font-size:.82rem}
+.member-access-controls{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;justify-content:flex-end}
+.member-access-role{font-size:.85rem;font-weight:700;color:#4b6556;white-space:nowrap}
+.member-access-controls .action.compact{margin:0;font-size:.83rem;padding:.5rem .75rem;white-space:nowrap}
+@media(max-width:640px){.member-access-row{align-items:flex-start;flex-direction:column}.member-access-controls{width:100%;justify-content:space-between}}
