@@ -2,6 +2,8 @@
 @attribute [Authorize(Roles = "Admin")]
 @inject IDbContextFactory<FraternityDb> DbFactory
 @inject NavigationManager Navigation
+@inject MemberAccessService Access
+@inject AuthenticationStateProvider Authentication
 
 <PageTitle>Administration | Fraternitas</PageTitle>
 <div class="page-head">
@@ -58,6 +60,46 @@
     </section>
 </div>
 
+<section class="panel">
+    <div class="section-head"><h2>Member access</h2><span class="muted">@members.Count accounts</span></div>
+    <p>All group members are <strong>Administrators by default</strong>. You can explicitly switch a person
+       to <strong>Member only</strong> if they should not manage the calendar, invitations, or other members.</p>
+    <p class="muted small">Role changes are saved permanently. The affected member should sign out and back
+       in (or fully reload their session) for the updated access to take effect.</p>
+
+    @if (!string.IsNullOrEmpty(roleError))
+    {
+        <p class="error" role="alert">@roleError</p>
+    }
+    @if (!string.IsNullOrEmpty(roleMessage))
+    {
+        <p class="muted" role="status">@roleMessage</p>
+    }
+
+    @foreach (var member in members)
+    {
+        <div class="member-access-row" @key="member.Id">
+            <div class="member-access-identity">
+                <strong>@member.DisplayName</strong>
+                <small>@member.Email</small>
+            </div>
+            <div class="member-access-controls">
+                <span class="member-access-role">@(member.IsMemberOnly ? "Member only" : "Administrator")</span>
+                @if (member.IsMemberOnly)
+                {
+                    <button type="button" class="action secondary compact" disabled="@changingRole"
+                            @onclick="() => ChangeRole(member.Id, false)">Make administrator</button>
+                }
+                else
+                {
+                    <button type="button" class="action secondary compact" disabled="@changingRole"
+                            @onclick="() => ChangeRole(member.Id, true)">Set member only</button>
+                }
+            </div>
+        </div>
+    }
+</section>
+
 @code {
     private string invitationUrl = "";
     private Guid? newlyCreatedInviteId;
@@ -65,6 +107,10 @@
     private int memberCount;
     private int eventCount;
     private int outstandingInvites;
+    private List<MemberAccessRow> members = [];
+    private string roleError = "";
+    private string roleMessage = "";
+    private bool changingRole;
 
     protected override async Task OnInitializedAsync() => await LoadCounts();
 
@@ -77,6 +123,7 @@
             .Where(i => i.GroupId == 1 && i.RedeemedUtc == null && i.ExpiresUtc > DateTime.UtcNow)
             .OrderBy(i => i.ExpiresUtc).ToListAsync();
         outstandingInvites = activeInvites.Count;
+        members = await Access.GetMembersAsync();
     }
 
     private async Task CreateInvitation()
@@ -114,4 +161,36 @@
         }
         await LoadCounts();
     }
+    private async Task ChangeRole(string userId, bool memberOnly)
+    {
+        if (changingRole) return;
+        changingRole = true;
+        roleError = "";
+        roleMessage = "";
+        try
+        {
+            var state = await Authentication.GetAuthenticationStateAsync();
+            await Access.SetMemberOnlyAsync(state.User, userId, memberOnly);
+            await LoadCounts();
+            roleMessage = memberOnly
+                ? "Member-only access saved. The user should sign in again."
+                : "Administrator access restored. The user should sign in again.";
+
+            if (memberOnly && state.User.FindFirstValue(ClaimTypes.NameIdentifier) == userId)
+            {
+                // Don't keep using the current interactive admin circuit after self-demotion.
+                Navigation.NavigateTo("/account/logout", forceLoad: true);
+            }
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException
+            or ArgumentException or InvalidOperationException)
+        {
+            roleError = ex.Message;
+        }
+        finally
+        {
+            changingRole = false;
+        }
+    }
+
 }
