@@ -9,6 +9,7 @@ Built with **.NET 10 Blazor Web App (Interactive Server)**, **Radzen Scheduler**
 ## Features in this starter
 
 - Invitation-only member accounts (one reusable group link, seven-day expiry and admin revocation)
+- Every new and existing member has **Administrator** access by default; the Admin page can explicitly change a user to **Member only**
 - Calendar with day/week/month views, add/edit/delete and drag-to-move for admins
 - Eastern time meeting schedule, categories and per-event .ics downloads
 - Event details with scriptures, reading linkage, description and meeting link
@@ -55,13 +56,15 @@ The previous `FRATERNITAS_ADMIN_EMAIL` and `FRATERNITAS_ADMIN_PASSWORD` bootstra
 
 The app creates `Fraternitas/App_Data/fraternitas.db` and `Fraternitas/App_Data/documents/` by default. In local Debug/Release builds these paths are resolved relative to the project directory, regardless of terminal working directory. Set `FRATERNITAS_DATA_DIR` to an absolute path on **persistent private storage** when hosting. Back up the database and document directory together.
 
-To invite members, sign in as administrator, open **Admin**, create **one group invitation link**, then send that same URL to everyone in the group chat. Each person registers an individual account with it. The link remains usable for additional registrations until it expires after seven days or you revoke it from **Admin**. Only the token hash is stored; copy the full URL before leaving the page. Invitations created in older versions and already redeemed stay unusable; generate a fresh shared link.
+To invite members, sign in as administrator, open **Admin**, create **one group invitation link**, then send that same URL to everyone in the group chat. Each person registers an individual account with it, receiving **Administrator privileges by default**. The link remains usable for additional registrations until it expires after seven days or you revoke it from **Admin**. Only the token hash is stored; copy the full URL before leaving the page. Invitations created in older versions and already redeemed stay unusable; generate a fresh shared link.
 
 ## Privacy and security
 
 - The GitHub repository is public; **group content is not in the repository**. Store no real member contact information, prayers, or PDFs in code or seed files.
 - Calendar, readings, discussions and uploads are protected by authenticated routes. Downloads are protected endpoints, not public static paths.
-- Only admins can modify the calendar or create member invitations.
+- All users have **Admin by default**: every invited user can manage the calendar, create/revoke invitation links, pin Scripture onto the calendar, and change member roles. **Shared invitation links therefore grant substantial access; share them carefully.** Members explicitly set to Member only cannot perform administrative actions.
+- In **Admin → Member access**, select **Set member only** to downgrade an account, or **Make administrator** to restore it. The app prevents downgrading the last administrator. Role changes take effect when the user signs in again (and sensitive edit actions check the current database role).
+- Existing accounts that previously had only the Member role automatically gain Admin on startup **unless an explicit Member-only exception exists**. Exceptions are stored as ASP.NET Identity claims in the current SQLite database and survive restarts; no schema migration, account reset or data deletion is needed.
 - Passwords must be non-empty; length/complexity restrictions were intentionally removed for ease of use. Encourage strong unique passwords because group discussions and uploaded documents remain private. Passwords are hashed using ASP.NET Core Identity. Authentication requests, first-run setup and sign-out use antiforgery validation.
 - The admin web setup is available only from loopback in Development before the first user exists; existing admin recovery requires local terminal access.
 - Invite URLs are secret, reusable by multiple distinct members, expire after seven days, and may be revoked by an administrator. Email addresses are not independently verified in this MVP.
