@@ -80,6 +80,14 @@ if (args.Contains("admin-setup", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+// Integration test: default Admin access and persistent explicit Member-only overrides.
+// Run with a disposable FRATERNITAS_DATA_DIR.
+if (args.Contains("verify-member-access", StringComparer.OrdinalIgnoreCase))
+{
+    await MemberAccessVerifier.VerifyAsync(app.Services, app.Logger);
+    return;
+}
+
 // Integration test helper; run only with a disposable data directory.
 if (args.Contains("verify-scripture-pins", StringComparer.OrdinalIgnoreCase))
 {
