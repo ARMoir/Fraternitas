@@ -85,7 +85,9 @@ jobs:
           # Home has one simple weekly event list and a full calendar link.
           grep -q "On the calendar" "$RUNNER_TEMP/home.html"
           grep -q "Full calendar" "$RUNNER_TEMP/home.html"
-          grep -q "Wednesday &amp; Friday fasting · Until 4 PM" "$RUNNER_TEMP/home.html"
+          grep -q "Until 4 PM" "$RUNNER_TEMP/home.html"
+          grep -q "Fast until 4:00 PM Eastern" "$RUNNER_TEMP/home.html"
+          grep -q "Wednesdays are also meatless" "$RUNNER_TEMP/home.html"
           ! grep -q "Previous week" "$RUNNER_TEMP/home.html"
           ! grep -q "Next week" "$RUNNER_TEMP/home.html"
           ! grep -q "Upcoming gatherings" "$RUNNER_TEMP/home.html"
