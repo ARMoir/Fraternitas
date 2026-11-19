@@ -65,3 +65,9 @@ textarea{resize:vertical;line-height:1.5}.two-columns{display:grid;grid-template
 .calendar-toggle{display:inline-flex;align-items:center;gap:.55rem;margin:.35rem 0 1rem;color:#53665b;font-weight:600;font-size:.9rem}
 .calendar-toggle input[type=checkbox]{width:auto;margin:0;accent-color:#2d6751;min-width:17px;min-height:17px}
 
+
+/* Keep calendar actions separated and vertically aligned on desktop/mobile. */
+.calendar-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem 1.5rem;margin-bottom:1.1rem}
+.calendar-toolbar .action.compact{margin-bottom:0;flex-shrink:0}
+.calendar-toolbar .calendar-toggle{margin:0;display:inline-flex;align-items:center;gap:.65rem;line-height:1.45;cursor:pointer}
+.calendar-toolbar .calendar-toggle input[type=checkbox]{flex:0 0 auto}
