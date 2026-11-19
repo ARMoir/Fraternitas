@@ -61,11 +61,16 @@ builder.Services.AddHttpClient<CatholicBibleService>(client =>
     client.Timeout = TimeSpan.FromSeconds(12);
 });
 builder.Services.AddScoped<ScripturePinService>();
+builder.Services.AddScoped<MemberAccessService>();
+// Refresh HTTP authorization cookies after an administrator changes a user's role.
+builder.Services.Configure<Microsoft.AspNetCore.Identity.SecurityStampValidatorOptions>(options =>
+    options.ValidationInterval = TimeSpan.FromMinutes(1));
 builder.Services.AddAuthorization();
 builder.Services.AddRadzenComponents();
 
 var app = builder.Build();
 await DatabaseSetup.InitializeAsync(app.Services, app.Logger);
+await MemberAccessService.ReconcileDefaultsAsync(app.Services, app.Logger);
 
 // Explicit local recovery command; never binds a web server.
 // dotnet run --project Fraternitas/Fraternitas.csproj -- admin-setup
