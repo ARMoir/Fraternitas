@@ -113,3 +113,40 @@ jobs:
           curl -sS -D "$RUNNER_TEMP/wizard-closed" -o /dev/null "http://127.0.0.1:5089/account/setup"
           grep -qi 'location: /account/login' "$RUNNER_TEMP/wizard-closed"
           echo 'First-run setup and one-time lockout passed'
+          # A single invitation must work for multiple distinct users, even with short passwords.
+          export TEST_INVITE=$(python3 - <<'PY'
+          import os, sqlite3, secrets, hashlib, uuid, datetime
+          token = secrets.token_urlsafe(32)
+          database = os.path.join(os.environ['FRATERNITAS_DATA_DIR'], 'fraternitas.db')
+          expires = (datetime.datetime.utcnow() + datetime.timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S.%f')
+          with sqlite3.connect(database) as db:
+              db.execute('INSERT INTO Invitations (Id, GroupId, TokenSha256, ExpiresUtc, RedeemedUtc) VALUES (?, 1, ?, ?, NULL)',
+                         (str(uuid.uuid4()), hashlib.sha256(token.encode()).hexdigest().upper(), expires))
+          print(token)
+          PY
+          )
+          for member in first second; do
+            curl -sS --fail -c "$RUNNER_TEMP/$member.cookies" \
+              "http://127.0.0.1:5089/account/join?code=$TEST_INVITE" -o "$RUNNER_TEMP/$member.join.html"
+            csrf=$(sed -n 's/.*name="__RequestVerificationToken" value="\([^"]*\)".*/\1/p' "$RUNNER_TEMP/$member.join.html" | head -1)
+            test -n "$csrf"
+            curl -sS -D "$RUNNER_TEMP/$member.join.headers" -o /dev/null \
+              -b "$RUNNER_TEMP/$member.cookies" -c "$RUNNER_TEMP/$member.cookies" \
+              --data-urlencode "__RequestVerificationToken=$csrf" \
+              --data-urlencode "code=$TEST_INVITE" --data-urlencode "name=$member Member" \
+              --data-urlencode "email=$member@example.invalid" --data-urlencode "password=xy" \
+              "http://127.0.0.1:5089/account/join"
+            grep -qi 'location: /' "$RUNNER_TEMP/$member.join.headers"
+            curl -sS --fail -b "$RUNNER_TEMP/$member.cookies" \
+              "http://127.0.0.1:5089/readings" -o "$RUNNER_TEMP/$member.readings.html"
+            grep -q 'The Five Joyful Mysteries' "$RUNNER_TEMP/$member.readings.html"
+          done
+          python3 - <<'PY'
+          import os, sqlite3
+          db = sqlite3.connect(os.path.join(os.environ['FRATERNITAS_DATA_DIR'], 'fraternitas.db'))
+          users = db.execute('SELECT COUNT(*) FROM AspNetUsers').fetchone()[0]
+          active = db.execute('SELECT COUNT(*) FROM Invitations WHERE RedeemedUtc IS NULL').fetchone()[0]
+          assert users == 3, f'Expected admin plus 2 members, found {users}'
+          assert active == 1, f'Expected shared invite to remain active, found {active}'
+          PY
+          echo 'Multi-use invitation with two members and short passwords passed'
