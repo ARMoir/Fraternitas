@@ -25,6 +25,12 @@ jobs:
           set -euo pipefail
           export FRATERNITAS_DATA_DIR="$RUNNER_TEMP/scripture-pin-test"
           dotnet run --no-build --no-launch-profile -c Release --project Fraternitas/Fraternitas.csproj -- verify-scripture-pins
+      - name: Verify membership role defaults and explicit exceptions
+        shell: bash
+        run: |
+          set -euo pipefail
+          export FRATERNITAS_DATA_DIR="$RUNNER_TEMP/member-access-test"
+          dotnet run --no-build --no-launch-profile -c Release --project Fraternitas/Fraternitas.csproj -- verify-member-access
       - name: Smoke test startup, sign-in and private routes
         shell: bash
         run: |
