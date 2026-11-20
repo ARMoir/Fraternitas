@@ -361,6 +361,9 @@ jobs:
           print("Native calendar event deletion persisted")
           PY
 
+          # Audit the remaining native form workflows without a WebSocket.
+          bash .github/scripts/native-actions-test.sh
+
       - name: Smoke test first-run web administrator wizard
         shell: bash
         run: |
