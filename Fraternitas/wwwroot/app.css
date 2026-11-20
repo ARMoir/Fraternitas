@@ -74,6 +74,24 @@ form[action="/documents/upload"] input[type=file]{width:min(100%,460px)}
 .calendar-toolbar .action.compact{margin-bottom:0;flex-shrink:0}
 .calendar-toolbar .calendar-toggle{margin:0;display:inline-flex;align-items:center;gap:.65rem;line-height:1.45;cursor:pointer}
 .calendar-preference-form{margin:0;display:flex;align-items:center;flex-wrap:wrap;gap:.45rem 1rem;max-width:100%}
+
+/* Native event windows and forms: work without a live Blazor connection. */
+.calendar-appointment-link{display:block;width:100%;height:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff!important;text-decoration:none!important;cursor:pointer}
+.calendar-appointment-link:hover,.calendar-appointment-link:focus-visible{color:#fff!important;text-decoration:underline!important}
+.calendar-native-modal{display:none;position:fixed;inset:0;z-index:5000;align-items:center;justify-content:center;padding:1rem}
+.calendar-native-modal:target{display:flex}
+.calendar-native-backdrop{position:absolute;inset:0;background:#172c21c9;cursor:pointer}
+.calendar-native-dialog{z-index:1;position:relative;width:min(700px,100%);max-height:90vh;overflow-y:auto;margin:0;padding:1.4rem 1.6rem;box-shadow:0 18px 50px #17251b55}
+.calendar-native-dialog .section-head{align-items:flex-start}
+.calendar-native-dialog .section-head h2{margin:.35rem 0 .5rem;overflow-wrap:anywhere}
+.calendar-native-dialog .pre-line{max-height:none}
+.calendar-native-close{font-size:1.4rem;font-weight:600;line-height:1;color:#496853;flex-shrink:0}
+.calendar-native-dialog .button-row{margin-bottom:.1rem}
+.calendar-event-editor{max-width:850px}
+.calendar-delete-confirm{display:flex;align-items:center;gap:.55rem;cursor:pointer}
+.calendar-delete-confirm input[type=checkbox]{width:auto;margin:0;flex-shrink:0;accent-color:#a73e3c}
+@media(max-width:640px){.calendar-native-dialog{padding:1rem;max-height:95vh}.calendar-native-dialog .button-row .action{font-size:.88rem}.calendar-native-modal{padding:.65rem}}
+
 .calendar-toolbar .calendar-toggle input[type=checkbox]{flex:0 0 auto}
 
 /* Catholic Scripture reader: compact numbered verses with a collapsible reading. */
