@@ -1,8 +1,6 @@
 @page "/discussions"
 @attribute [Authorize]
 @inject IDbContextFactory<FraternityDb> DbFactory
-@inject AuthenticationStateProvider Authentication
-@inject NavigationManager Navigation
 
 <PageTitle>Discussions | Fraternitas</PageTitle>
 <div class="page-head">
@@ -16,10 +14,17 @@
         <h2>Start a discussion</h2>
         <a class="action secondary compact" href="/readings">📌 Pin a Bible verse</a>
     </div>
-    <label>Topic<input maxlength="150" @bind="title" placeholder="What would you like to discuss?" /></label>
-    <label>Your message<textarea rows="4" maxlength="6000" @bind="body"></textarea></label>
-    @if (!string.IsNullOrEmpty(error)) { <p class="error">@error</p> }
-    <button class="action" @onclick="CreateDiscussion">Post discussion</button>
+    <form method="post" action="/discussions/create" data-enhance="false">
+        <AntiforgeryToken />
+        <label>Topic<input name="title" maxlength="150"
+                           placeholder="What would you like to discuss?" required /></label>
+        <label>Your message<textarea name="body" rows="4" maxlength="6000" required></textarea></label>
+        @if (PostError == "invalid")
+        {
+            <p class="error" role="alert">Enter a topic and a message before posting.</p>
+        }
+        <button class="action" type="submit">Post discussion</button>
+    </form>
 </section>
 
 <section class="panel">
@@ -38,36 +43,17 @@
 </section>
 
 @code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? PostError { get; set; }
+
     private List<Discussion> posts = [];
-    private string title = "";
-    private string body = "";
-    private string error = "";
 
-    protected override async Task OnInitializedAsync() => await Reload();
-
-    private async Task Reload()
+    protected override async Task OnInitializedAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        posts = await db.Discussions.AsNoTracking().Include(d => d.Author).Include(d => d.Replies)
-            .Where(d => d.GroupId == 1).OrderByDescending(d => d.CreatedUtc).Take(100).ToListAsync();
-    }
-
-    private async Task CreateDiscussion()
-    {
-        error = "";
-        if (string.IsNullOrWhiteSpace(title) || title.Length > 150 ||
-            string.IsNullOrWhiteSpace(body) || body.Length > 6000)
-        {
-            error = "Enter a topic and a message.";
-            return;
-        }
-        var auth = await Authentication.GetAuthenticationStateAsync();
-        var userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId)) { error = "Sign in to post."; return; }
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var post = new Discussion { Title = title.Trim(), Body = body.Trim(), AuthorId = userId };
-        db.Discussions.Add(post);
-        await db.SaveChangesAsync();
-        Navigation.NavigateTo($"/discussions/{post.Id}");
+        posts = await db.Discussions.AsNoTracking().Include(d => d.Author)
+            .Include(d => d.Replies).Where(d => d.GroupId == 1)
+            .OrderByDescending(d => d.CreatedUtc).Take(100).ToListAsync();
     }
 }
