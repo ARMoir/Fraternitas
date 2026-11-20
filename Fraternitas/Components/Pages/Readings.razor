@@ -47,18 +47,14 @@
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         readings = await db.Readings.AsNoTracking().OrderBy(r => r.Week).ToListAsync();
-    }
 
-    // Load from HelloAO after the first render so an unavailable API
-    // doesn't delay or break the reading guides.
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender || readings.Count == 0) return;
-
-        var results = await Task.WhenAll(readings.Select(async reading =>
+        // Render the Scripture passages as part of the initial HTML response.
+        // OnAfterRenderAsync doesn't execute during static prerendering, so
+        // fetching there left this page stuck on "Loading..." whenever the
+        // Blazor Server circuit was unavailable.
+        var loaded = await Task.WhenAll(readings.Select(async reading =>
             (Week: reading.Week, Passage: await Bible.GetPassageAsync(reading.Scripture))));
-        passages = results.ToDictionary(result => result.Week, result => result.Passage);
-        await InvokeAsync(StateHasChanged);
+        passages = loaded.ToDictionary(item => item.Week, item => item.Passage);
     }
 
     private CatholicPassage? GetPassage(int week) =>
