@@ -4,7 +4,6 @@ using Fraternitas.Data;
 using Fraternitas.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Radzen;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,7 +23,7 @@ Directory.CreateDirectory(dataPath);
 Directory.CreateDirectory(Path.Combine(dataPath, "documents"));
 
 builder.Services.AddSingleton(new DataStorage(dataPath));
-builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+builder.Services.AddRazorComponents();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddDbContextFactory<FraternityDb>(options =>
     options.UseSqlite($"Data Source={Path.Combine(dataPath, "fraternitas.db")}"));
@@ -68,7 +67,6 @@ builder.Services.AddScoped<UserPreferencesService>();
 builder.Services.Configure<Microsoft.AspNetCore.Identity.SecurityStampValidatorOptions>(options =>
     options.ValidationInterval = TimeSpan.FromMinutes(1));
 builder.Services.AddAuthorization();
-builder.Services.AddRadzenComponents();
 
 var app = builder.Build();
 await DatabaseSetup.InitializeAsync(app.Services, app.Logger);
@@ -183,30 +181,6 @@ app.Use(async (context, next) =>
 
     await next();
 });
-// In Production, the published NuGet static assets are physically present under
-// wwwroot/_content/Radzen.Blazor. Serve them directly from disk *before*
-// MapStaticAssets: the Pi/Cloudflare combination has intermittently delivered
-// empty 200 bodies for the manifest-managed compressed variants. Serving
-// these assets without precompressed negotiation also covers Radzen's fonts
-// (otherwise Material icon ligatures appear as literal words).
-// In Development the directory may not exist; regular static web assets remain
-// available through the existing middleware and MapStaticAssets below.
-var radzenAssetsDirectory = Path.Combine(
-    app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"),
-    "_content", "Radzen.Blazor");
-if (Directory.Exists(radzenAssetsDirectory))
-{
-    app.UseStaticFiles(new StaticFileOptions
-    {
-        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(radzenAssetsDirectory),
-        RequestPath = "/_content/Radzen.Blazor",
-        OnPrepareResponse = ctx =>
-        {
-            ctx.Context.Response.Headers.CacheControl = "no-store, max-age=0";
-            ctx.Context.Response.Headers.Pragma = "no-cache";
-        }
-    });
-}
 app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
@@ -252,8 +226,7 @@ app.MapGet("/events/{id:guid}/calendar.ics", async (Guid id, IDbContextFactory<F
     return Results.File(Encoding.UTF8.GetBytes(ics), "text/calendar", "fraternitas-event.ics");
 }).RequireAuthorization();
 
-// .NET 10 serves referenced package static web assets (Radzen CSS/fonts/scripts)
-// through MapStaticAssets, including Release builds.
+// Retain built-in ASP.NET static asset mapping for published web resources.
 app.MapStaticAssets();
-app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+app.MapRazorComponents<App>();
 app.Run();
