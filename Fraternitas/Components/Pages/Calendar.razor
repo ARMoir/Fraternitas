@@ -34,21 +34,92 @@
             <button class="action secondary compact" type="submit">Apply</button>
         </form>
     </div>
-    <RadzenScheduler TItem="CalendarEvent" Data="@visibleEvents" StartProperty="StartLocal"
-                     EndProperty="EndLocal" TextProperty="Title" SelectedIndex="2"
-                     AppointmentRender="@RenderAppointment"
-                     Style="height:720px;">
-        <Template Context="calendarItem">
-            <a class="calendar-appointment-link" href="@($"#event-{calendarItem.Id:N}")"
-               title="@calendarItem.Title">@calendarItem.Title</a>
-        </Template>
-        <ChildContent>
-            <RadzenDayView />
-            <RadzenWeekView />
-            @* Prevent zero-slot overflow links when Radzen cannot measure a month cell. *@
-            <RadzenMonthView MaxAppointmentsInSlot="5" />
-        </ChildContent>
-    </RadzenScheduler>
+    <div class="frat-calendar-navigation" aria-label="Calendar navigation">
+        <div class="frat-calendar-period">
+            <a class="frat-calendar-nav-button" href="@CalendarUrl(selectedView, PreviousDate)" aria-label="Previous period">‹</a>
+            <a class="frat-calendar-nav-button" href="@CalendarUrl(selectedView, NextDate)" aria-label="Next period">›</a>
+            <a class="frat-calendar-today" href="@CalendarUrl(selectedView, GroupClock.Now.Date)">Today</a>
+            <strong>@PeriodLabel</strong>
+        </div>
+        <div class="frat-calendar-view-options" aria-label="Calendar view">
+            <a class="@(selectedView == "day" ? "active" : "")"
+               href="@CalendarUrl("day", selectedDate)">Day</a>
+            <a class="@(selectedView == "week" ? "active" : "")"
+               href="@CalendarUrl("week", selectedDate)">Week</a>
+            <a class="@(selectedView == "month" ? "active" : "")"
+               href="@CalendarUrl("month", selectedDate)">Month</a>
+        </div>
+    </div>
+    @if (selectedView == "month")
+    {
+        <div class="frat-calendar-month" role="table" aria-label="@PeriodLabel">
+            <div class="frat-calendar-grid">
+                @foreach (var weekday in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
+                {
+                    <div class="frat-calendar-weekday" role="columnheader">@weekday</div>
+                }
+                @foreach (var day in MonthDays)
+                {
+                    var dayEvents = EventsOn(day);
+                    <div class="frat-calendar-day @(day.Month == selectedDate.Month ? "" : "frat-calendar-other-month")"
+                         role="cell">
+                        <a class="frat-calendar-day-number @(day == GroupClock.Now.Date ? "is-today" : "")"
+                           href="@CalendarUrl("day", day)" aria-label="@day.ToString("dddd, MMMM d, yyyy")">
+                            @day.Day
+                        </a>
+                        <div class="frat-calendar-appointments">
+                            @foreach (var ev in dayEvents.Take(5))
+                            {
+                                <a class="@EventCssClass(ev)" href="@($"#event-{ev.Id:N}")"
+                                   title="@ev.Title">@ev.Title</a>
+                            }
+                            @if (dayEvents.Count > 5)
+                            {
+                                <a class="frat-calendar-more" href="@CalendarUrl("day", day)">
+                                    View @(dayEvents.Count - 5) more
+                                </a>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else if (selectedView == "week")
+    {
+        <div class="frat-calendar-week">
+            @foreach (var day in WeekDays)
+            {
+                var dayEvents = EventsOn(day);
+                <section class="frat-calendar-week-day">
+                    <h3><a href="@CalendarUrl("day", day)">@day.ToString("ddd, MMM d")</a></h3>
+                    @foreach (var ev in dayEvents)
+                    {
+                        <a class="@EventCssClass(ev)" href="@($"#event-{ev.Id:N}")"
+                           title="@ev.Title">@ev.Title</a>
+                    }
+                    @if (dayEvents.Count == 0) { <p class="muted small">No events</p> }
+                </section>
+            }
+        </div>
+    }
+    else
+    {
+        <section class="frat-calendar-single-day">
+            <h2>@selectedDate.ToString("dddd, MMMM d, yyyy")</h2>
+            @if (EventsOn(selectedDate).Count == 0)
+            {
+                <p class="muted">No events scheduled for this day.</p>
+            }
+            @foreach (var ev in EventsOn(selectedDate))
+            {
+                <a class="@EventCssClass(ev)" href="@($"#event-{ev.Id:N}")">
+                    <strong>@ev.Title</strong>
+                    <small>@EventTime(ev)</small>
+                </a>
+            }
+        </section>
+    }
 </div>
 
 @* These are URL-fragment-controlled windows, so opening and closing them
@@ -78,11 +149,11 @@
                 <div class="two-columns">
                     <label>Start (Eastern)
                         <input type="datetime-local" name="startLocal"
-                               value="@GroupClock.Now.Date.AddHours(20).ToString("yyyy-MM-ddTHH:mm")" required />
+                               value="@selectedDate.Date.AddHours(20).ToString("yyyy-MM-ddTHH:mm")" required />
                     </label>
                     <label>End (Eastern)
                         <input type="datetime-local" name="endLocal"
-                               value="@GroupClock.Now.Date.AddHours(21).ToString("yyyy-MM-ddTHH:mm")" required />
+                               value="@selectedDate.Date.AddHours(21).ToString("yyyy-MM-ddTHH:mm")" required />
                     </label>
                 </div>
                 <label>Type
@@ -175,6 +246,91 @@
     [SupplyParameterFromQuery(Name = "event")]
     public string? EventResult { get; set; }
 
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "view")]
+    public string? ViewQuery { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "date")]
+    public string? DateQuery { get; set; }
+
+    private string selectedView = "month";
+    private DateTime selectedDate = GroupClock.Now.Date;
+
+    protected override void OnParametersSet()
+    {
+        selectedView = ViewQuery is "day" or "week" or "month" ? ViewQuery : "month";
+        selectedDate = DateTime.TryParseExact(DateQuery, "yyyy-MM-dd",
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out var date)
+            && date.Year is >= 2000 and <= 2100
+            ? date.Date : GroupClock.Now.Date;
+    }
+
+    private static DateTime StartOfWeek(DateTime date) =>
+        date.Date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
+
+    private IEnumerable<DateTime> MonthDays
+    {
+        get
+        {
+            var first = new DateTime(selectedDate.Year, selectedDate.Month, 1);
+            var last = first.AddMonths(1).AddDays(-1);
+            var start = StartOfWeek(first);
+            var end = StartOfWeek(last).AddDays(6);
+            return Enumerable.Range(0, (end - start).Days + 1)
+                .Select(i => start.AddDays(i));
+        }
+    }
+
+    private IEnumerable<DateTime> WeekDays =>
+        Enumerable.Range(0, 7).Select(i => StartOfWeek(selectedDate).AddDays(i));
+
+    private DateTime PreviousDate => selectedView switch
+    {
+        "day" => selectedDate.AddDays(-1),
+        "week" => selectedDate.AddDays(-7),
+        _ => selectedDate.AddMonths(-1)
+    };
+
+    private DateTime NextDate => selectedView switch
+    {
+        "day" => selectedDate.AddDays(1),
+        "week" => selectedDate.AddDays(7),
+        _ => selectedDate.AddMonths(1)
+    };
+
+    private string PeriodLabel => selectedView switch
+    {
+        "day" => selectedDate.ToString("MMMM d, yyyy"),
+        "week" => $"{StartOfWeek(selectedDate):MMM d} – {StartOfWeek(selectedDate).AddDays(6):MMM d, yyyy}",
+        _ => selectedDate.ToString("MMMM yyyy")
+    };
+
+    private static string CalendarUrl(string view, DateTime date) =>
+        $"/calendar?view={view}&date={date:yyyy-MM-dd}";
+
+    private List<CalendarEvent> EventsOn(DateTime day) =>
+        visibleEvents.Where(e => e.StartLocal < day.Date.AddDays(1)
+            && e.EndLocal > day.Date)
+            .OrderBy(e => e.StartLocal).ThenBy(e => e.Title).ToList();
+
+    private static string EventCssClass(CalendarEvent ev) => ev.Category switch
+    {
+        "Fasting" => "frat-calendar-event frat-calendar-fasting",
+        "Prayer" => "frat-calendar-event frat-calendar-prayer",
+        "Fellowship" => "frat-calendar-event frat-calendar-fellowship",
+        "Scripture" => "frat-calendar-event frat-calendar-scripture",
+        "Other" => "frat-calendar-event frat-calendar-other",
+        _ => "frat-calendar-event frat-calendar-meeting"
+    };
+
+    private static string EventTime(CalendarEvent ev) =>
+        ev.StartLocal.TimeOfDay == TimeSpan.Zero
+            && ev.EndLocal == ev.StartLocal.Date.AddDays(1)
+            ? "All day · Eastern"
+            : $"{ev.StartLocal:h:mm tt} – {ev.EndLocal:h:mm tt} Eastern";
+
     private List<CalendarEvent> events = [];
     private bool showDailyPrayer;
     private List<CalendarEvent> visibleEvents => showDailyPrayer
@@ -199,21 +355,6 @@
         await using var db = await DbFactory.CreateDbContextAsync();
         events = await db.CalendarEvents.AsNoTracking().Where(e => e.GroupId == 1)
             .OrderBy(e => e.StartLocal).ToListAsync();
-    }
-
-    private void RenderAppointment(SchedulerAppointmentRenderEventArgs<CalendarEvent> args)
-    {
-        if (args.Data is null) return;
-        var color = args.Data.Category switch
-        {
-            "Fasting" => "#a26830",
-            "Prayer" => "#536b9a",
-            "Fellowship" => "#845e88",
-            "Scripture" => "#5473a3",
-            "Other" => "#687970",
-            _ => "#245d4b"
-        };
-        args.Attributes["style"] = $"background-color:{color};border-color:{color};";
     }
 
 }
