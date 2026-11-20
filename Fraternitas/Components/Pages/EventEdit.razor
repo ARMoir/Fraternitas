@@ -1,0 +1,128 @@
+@page "/events/{Id:guid}/edit"
+@attribute [Authorize(Roles = "Admin")]
+@inject IDbContextFactory<FraternityDb> DbFactory
+@inject AuthenticationStateProvider Authentication
+@inject MemberAccessService MemberAccess
+
+<PageTitle>Edit event | Fraternitas</PageTitle>
+
+@if (!authorized)
+{
+    <section class="panel">
+        <h1>Administrator access required</h1>
+        <p>Your role may have changed. Sign in again to manage events.</p>
+    </section>
+}
+else if (ev is null)
+{
+    <section class="panel">
+        <h1>Event not found</h1>
+        <a class="action secondary" href="/calendar">Return to calendar</a>
+    </section>
+}
+else
+{
+    <div class="page-head">
+        <div class="eyebrow">CALENDAR ADMINISTRATION</div>
+        <h1>Edit event</h1>
+        <p>@ev.Title</p>
+    </div>
+
+    <section class="panel calendar-event-editor">
+        @if (Error == "invalid")
+        {
+            <p class="error" role="alert">Please check the event details and dates.</p>
+        }
+        <form method="post" action="@($"/calendar/events/{ev.Id}/update")" data-enhance="false">
+            <AntiforgeryToken />
+            <label>Title
+                <input name="title" maxlength="150" required value="@ev.Title" />
+            </label>
+            <div class="two-columns">
+                <label>Start (Eastern)
+                    <input type="datetime-local" name="startLocal" required
+                           value="@ev.StartLocal.ToString("yyyy-MM-ddTHH:mm")" />
+                </label>
+                <label>End (Eastern)
+                    <input type="datetime-local" name="endLocal" required
+                           value="@ev.EndLocal.ToString("yyyy-MM-ddTHH:mm")" />
+                </label>
+            </div>
+            <label>Type
+                <select name="category">
+                    @foreach (var category in categories)
+                    {
+                        <option value="@category" selected="@(ev.Category == category)">@category</option>
+                    }
+                </select>
+            </label>
+            <label>Reading
+                <select name="readingId">
+                    <option value="">None</option>
+                    @foreach (var reading in readings)
+                    {
+                        <option value="@reading.Id" selected="@(ev.ReadingId == reading.Id)">
+                            @reading.Title
+                        </option>
+                    }
+                </select>
+            </label>
+            <label>Sacred Scripture reference
+                <input name="scripture" maxlength="100" value="@ev.Scripture" />
+            </label>
+            <label>Meeting link
+                <input type="url" name="meetingUrl" maxlength="1000" value="@ev.MeetingUrl" />
+            </label>
+            <label>Description
+                <textarea name="description" rows="6" maxlength="5000">@ev.Description</textarea>
+            </label>
+            <div class="button-row">
+                <button type="submit" class="action">Save changes</button>
+                <a class="action secondary" href="@($"/calendar#event-{ev.Id:N}")">Cancel</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel calendar-event-editor">
+        <h2>Delete event</h2>
+        <p>This removes the event from the group calendar. Its documents and discussions are retained as general group resources.</p>
+        @if (Error == "confirm")
+        {
+            <p role="alert" class="error">Confirm deletion before proceeding.</p>
+        }
+        <form method="post" action="@($"/calendar/events/{ev.Id}/delete")" data-enhance="false">
+            <AntiforgeryToken />
+            <label class="calendar-delete-confirm">
+                <input type="checkbox" name="confirmDelete" value="yes" required />
+                I understand this event will be deleted.
+            </label>
+            <button class="danger-button" type="submit">Delete event</button>
+        </form>
+    </section>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    [Parameter] public string? Error { get; set; }
+
+    private CalendarEvent? ev;
+    private bool authorized;
+    private List<Reading> readings = [];
+    private readonly string[] categories =
+        ["Meeting", "Fasting", "Prayer", "Fellowship", "Scripture", "Other"];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var user = (await Authentication.GetAuthenticationStateAsync()).User;
+        authorized = await MemberAccess.IsAdministratorAsync(user);
+        if (!authorized)
+            return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        ev = await db.CalendarEvents.AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == Id && item.GroupId == 1);
+        readings = await db.Readings.AsNoTracking().OrderBy(r => r.Week).ToListAsync();
+    }
+}
