@@ -39,7 +39,14 @@ public static class DatabaseSetup
         if (!await db.Groups.AnyAsync())
         {
             db.Groups.Add(new FraternityGroup { Id = 1, Name = "Men of Advent",
-                Description = "Prayer, asceticism, and fraternity." });
+                Description = "Prayer, penance, and fraternity in Christ." });
+        }
+        else
+        {
+            // Only update the original, unedited starter description.
+            var originalGroup = await db.Groups.FirstOrDefaultAsync(g => g.Id == 1);
+            if (originalGroup?.Description == "Prayer, asceticism, and fraternity.")
+                originalGroup.Description = "Prayer, penance, and fraternity in Christ.";
         }
 
         if (!await db.Readings.AnyAsync())
