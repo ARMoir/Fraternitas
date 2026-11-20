@@ -176,6 +176,30 @@ app.Use(async (context, next) =>
 
     await next();
 });
+// In Production, the published NuGet static assets are physically present under
+// wwwroot/_content/Radzen.Blazor. Serve them directly from disk *before*
+// MapStaticAssets: the Pi/Cloudflare combination has intermittently delivered
+// empty 200 bodies for the manifest-managed compressed variants. Serving
+// these assets without precompressed negotiation also covers Radzen's fonts
+// (otherwise Material icon ligatures appear as literal words).
+// In Development the directory may not exist; regular static web assets remain
+// available through the existing middleware and MapStaticAssets below.
+var radzenAssetsDirectory = Path.Combine(
+    app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"),
+    "_content", "Radzen.Blazor");
+if (Directory.Exists(radzenAssetsDirectory))
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(radzenAssetsDirectory),
+        RequestPath = "/_content/Radzen.Blazor",
+        OnPrepareResponse = ctx =>
+        {
+            ctx.Context.Response.Headers.CacheControl = "no-store, max-age=0";
+            ctx.Context.Response.Headers.Pragma = "no-cache";
+        }
+    });
+}
 app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
