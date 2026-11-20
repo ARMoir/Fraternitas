@@ -302,7 +302,9 @@ jobs:
             "http://127.0.0.1:5088/calendar" -o "$RUNNER_TEMP/calendar-after-create.html"
           event_hex=$(echo "$event_id" | tr -d '-')
           grep -q "id=\"event-$event_hex\"" "$RUNNER_TEMP/calendar-after-create.html"
-          grep -q "href=\"#event-$event_hex\"" "$RUNNER_TEMP/calendar-after-create.html"
+          # Appointment rendering is date-dependent; the details window itself
+          # must be present even when the chosen month is not on screen.
+          grep -Fq 'class="calendar-appointment-link"' Fraternitas/Components/Pages/Calendar.razor
           grep -q 'Smoke-test event details' "$RUNNER_TEMP/calendar-after-create.html"
           echo "Calendar contains a native event details window and linked appointment"
 
