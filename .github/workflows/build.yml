@@ -194,6 +194,60 @@ jobs:
           assert parser.checked, "Saved daily prayer preference not rendered on revisit"
           print("Calendar preference restored from SQLite on page reload")
           PY
+          # Native document upload must work without JavaScript or an interactive circuit.
+          curl --silent --show-error --fail -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/documents" -o "$RUNNER_TEMP/documents-form.html"
+          grep -q 'enctype="multipart/form-data"' "$RUNNER_TEMP/documents-form.html"
+          grep -q 'Upload document' "$RUNNER_TEMP/documents-form.html"
+          upload_csrf=$(python3 - "$RUNNER_TEMP/documents-form.html" <<'PY'
+          import sys
+          from html.parser import HTMLParser
+          class TokenParser(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.token = None
+              def handle_starttag(self, tag, attrs):
+                  attributes = dict(attrs)
+                  if tag == "input" and attributes.get("name") == "__RequestVerificationToken":
+                      self.token = attributes.get("value")
+          parser = TokenParser()
+          with open(sys.argv[1], encoding="utf-8") as source:
+              parser.feed(source.read())
+          if not parser.token:
+              raise SystemExit("Document upload form has no antiforgery token")
+          print(parser.token)
+          PY
+          )
+          printf 'An Advent prayer for the fraternity.\n' > "$RUNNER_TEMP/prayer-upload.txt"
+          curl --silent --show-error -D "$RUNNER_TEMP/upload-headers" -o /dev/null \
+            -b "$RUNNER_TEMP/cookies.txt" -c "$RUNNER_TEMP/cookies.txt" \
+            -F "__RequestVerificationToken=$upload_csrf" \
+            -F "eventId=" \
+            -F "document=@$RUNNER_TEMP/prayer-upload.txt;filename=Advent-Prayer.txt;type=text/plain" \
+            "http://127.0.0.1:5088/documents/upload"
+          grep -qE '^HTTP/[^ ]+ 302' "$RUNNER_TEMP/upload-headers"
+          grep -qi 'location: /documents?upload=success' "$RUNNER_TEMP/upload-headers"
+          python3 - <<'PY'
+          import os, sqlite3
+          data = os.environ["FRATERNITAS_DATA_DIR"]
+          con = sqlite3.connect(os.path.join(data, "fraternitas.db"))
+          rows = con.execute("""
+              SELECT StoredName, FileName, Length, UploadedById FROM SharedDocuments
+              WHERE FileName = 'Advent-Prayer.txt' AND GroupId = 1
+          """).fetchall()
+          assert len(rows) == 1, f"Expected one uploaded resource, found {len(rows)}"
+          stored, name, length, author = rows[0]
+          assert author, "Upload must be attributed to a member"
+          with open(os.path.join(data, "documents", stored), "rb") as source:
+              content = source.read()
+          assert length == len(content) and content.startswith(b"An Advent prayer")
+          print("Native document upload verified: stored file, SQLite record, member ownership")
+          PY
+          curl --silent --show-error --fail -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/documents?upload=success" -o "$RUNNER_TEMP/documents-after-upload.html"
+          grep -q 'Advent-Prayer.txt' "$RUNNER_TEMP/documents-after-upload.html"
+          echo "Uploaded document is visible in the resource library"
+
       - name: Smoke test first-run web administrator wizard
         shell: bash
         run: |
