@@ -4,6 +4,7 @@
 @inject AuthenticationStateProvider Authentication
 @inject NavigationManager Navigation
 @inject MemberAccessService MemberAccess
+@inject UserPreferencesService Preferences
 
 <PageTitle>Calendar | Fraternitas</PageTitle>
 <div class="page-head">
@@ -22,6 +23,10 @@
             <input type="checkbox" checked="@showDailyPrayer" @onchange="ToggleDailyPrayer" />
             Show daily prayer, Examen &amp; screen-time commitments
         </label>
+        @if (!string.IsNullOrEmpty(preferenceError))
+        {
+            <span class="error" role="alert">@preferenceError</span>
+        }
     </div>
     <RadzenScheduler @ref="scheduler" TItem="CalendarEvent" Data="@visibleEvents" StartProperty="StartLocal"
                      EndProperty="EndLocal" TextProperty="Title" SelectedIndex="2"
@@ -70,13 +75,29 @@
     private RadzenScheduler<CalendarEvent>? scheduler;
     private List<CalendarEvent> events = [];
     private bool showDailyPrayer;
+    private string preferenceError = "";
     private List<CalendarEvent> visibleEvents => showDailyPrayer
         ? events
         : events.Where(e => e.Category != "Prayer" || e.Title != "Daily prayer & Examen").ToList();
 
     private async Task ToggleDailyPrayer(ChangeEventArgs args)
     {
-        showDailyPrayer = args.Value is bool checkedValue && checkedValue;
+        var enabled = args.Value is bool checkedValue && checkedValue;
+        var previous = showDailyPrayer;
+        preferenceError = "";
+        showDailyPrayer = enabled;
+
+        try
+        {
+            var state = await Authentication.GetAuthenticationStateAsync();
+            await Preferences.SetBooleanAsync(state.User, UserPreferencesService.CalendarShowDailyPrayer, enabled);
+        }
+        catch
+        {
+            showDailyPrayer = previous;
+            preferenceError = "Could not save your calendar preference. Please try again.";
+        }
+
         if (scheduler is not null) await scheduler.Reload();
     }
     private List<Reading> readings = [];
@@ -89,6 +110,7 @@
     {
         var state = await Authentication.GetAuthenticationStateAsync();
         isAdmin = state.User.IsInRole("Admin");
+        showDailyPrayer = await Preferences.GetBooleanAsync(state.User, UserPreferencesService.CalendarShowDailyPrayer);
         await using var db = await DbFactory.CreateDbContextAsync();
         readings = await db.Readings.AsNoTracking().OrderBy(r => r.Week).ToListAsync();
         await ReloadEvents();
