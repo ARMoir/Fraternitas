@@ -43,12 +43,12 @@
             <a class="calendar-appointment-link" href="@($"#event-{calendarItem.Id:N}")"
                title="@calendarItem.Title">@calendarItem.Title</a>
         </Template>
-        <RadzenDayView />
-        <RadzenWeekView />
-        @* Without an explicit limit, Radzen determines the monthly appointment
-           count from a JS size measurement. When that has not initialized,
-           it can calculate zero slots and show "+1 more" for a single event. *@
-        <RadzenMonthView MaxAppointmentsInSlot="5" />
+        <ChildContent>
+            <RadzenDayView />
+            <RadzenWeekView />
+            @* Prevent zero-slot overflow links when Radzen cannot measure a month cell. *@
+            <RadzenMonthView MaxAppointmentsInSlot="5" />
+        </ChildContent>
     </RadzenScheduler>
 </div>
 
