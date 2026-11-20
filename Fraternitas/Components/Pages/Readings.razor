@@ -9,6 +9,14 @@
     <h1>The Five Joyful Mysteries</h1>
     <p>Read each passage three times, moving from observation to meaning to personal application.</p>
     <p class="muted small">Scripture from the Douay–Rheims 1899 Catholic Bible via HelloAO, with the full Catholic canon verified before loading.</p>
+    @if (PinError == "invalid")
+    {
+        <p class="error" role="alert">Choose a valid Scripture verse and reflection.</p>
+    }
+    else if (PinError == "failed")
+    {
+        <p class="error" role="alert">The verse could not be pinned. Verify your access and try again.</p>
+    }
     @if (DiscussionId.HasValue)
     {
         <p class="muted">Choose a verse and select <strong>Pin in this discussion</strong> to share it as a reply.</p>
@@ -39,6 +47,9 @@
 @code {
     [Parameter, SupplyParameterFromQuery(Name = "discussionId")]
     public Guid? DiscussionId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "pin")]
+    public string? PinError { get; set; }
 
     private List<Reading> readings = [];
     private Dictionary<int, CatholicPassage> passages = [];
