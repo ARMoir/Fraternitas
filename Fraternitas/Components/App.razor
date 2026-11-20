@@ -1,3 +1,5 @@
+@inject IWebHostEnvironment HostEnvironment
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,7 +9,7 @@
     <title>Fraternitas</title>
     <!-- Use the bundled free Material stylesheet so scheduler layout and icon fonts are available on first paint. -->
     <link rel="stylesheet" href="_content/Radzen.Blazor/css/material-base.css" />
-    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="@($"app.css?v={AppCssVersion}")" />
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
 <body>
@@ -16,3 +18,12 @@
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js"></script>
 </body>
 </html>
+
+@code {
+    // Changes whenever the CSS content changes, even when deployment copies
+    // preserve source file timestamps. Prevents browsers from caching old CSS.
+    private string AppCssVersion => Convert.ToHexString(
+        System.Security.Cryptography.SHA256.HashData(
+            System.IO.File.ReadAllBytes(
+                System.IO.Path.Combine(HostEnvironment.WebRootPath, "app.css"))))[..12];
+}
