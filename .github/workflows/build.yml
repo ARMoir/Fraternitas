@@ -304,7 +304,21 @@ jobs:
           grep -q "id=\"event-$event_hex\"" "$RUNNER_TEMP/calendar-after-create.html"
           # Appointment rendering is date-dependent; the details window itself
           # must be present even when the chosen month is not on screen.
-          grep -Fq 'class="calendar-appointment-link"' Fraternitas/Components/Pages/Calendar.razor
+          grep -Fq 'class="@EventCssClass(ev)"' Fraternitas/Components/Pages/Calendar.razor
+          # Month/week/day navigation is now plain HTML, not a Blazor event.
+          grep -q 'Calendar navigation' "$RUNNER_TEMP/calendar-after-create.html"
+          grep -q 'view=month' "$RUNNER_TEMP/calendar-after-create.html"
+          grep -q 'view=week' "$RUNNER_TEMP/calendar-after-create.html"
+          grep -q 'view=day' "$RUNNER_TEMP/calendar-after-create.html"
+          curl -sSf -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/calendar?view=week&date=2026-11-23" \
+            -o "$RUNNER_TEMP/calendar-week.html"
+          grep -q 'frat-calendar-week' "$RUNNER_TEMP/calendar-week.html"
+          curl -sSf -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/calendar?view=day&date=2026-11-23" \
+            -o "$RUNNER_TEMP/calendar-day.html"
+          grep -q 'frat-calendar-single-day' "$RUNNER_TEMP/calendar-day.html"
+          grep -q 'Advent calendar event smoke test' "$RUNNER_TEMP/calendar-day.html"
           grep -q 'Smoke-test event details' "$RUNNER_TEMP/calendar-after-create.html"
           echo "Calendar contains a native event details window and linked appointment"
 
