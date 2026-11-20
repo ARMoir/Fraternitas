@@ -216,6 +216,7 @@ app.UseAntiforgery();
 app.MapAccountEndpoints();
 app.MapUserPreferenceEndpoints();
 app.MapDocumentUploadEndpoints();
+app.MapCalendarEventEndpoints();
 app.MapGet("/resources/file/{id:guid}", async (Guid id, IDbContextFactory<FraternityDb> factory,
     DataStorage storage) =>
 {
