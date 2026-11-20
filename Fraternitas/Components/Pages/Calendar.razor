@@ -3,7 +3,6 @@
 @inject IDbContextFactory<FraternityDb> DbFactory
 @inject AuthenticationStateProvider Authentication
 @inject NavigationManager Navigation
-@inject MemberAccessService MemberAccess
 @inject UserPreferencesService Preferences
 
 <PageTitle>Calendar | Fraternitas</PageTitle>
@@ -35,13 +34,9 @@
             <button class="action secondary compact" type="submit">Apply</button>
         </form>
     </div>
-    @if (!string.IsNullOrWhiteSpace(moveError))
-    {
-        <p class="error" role="alert">@moveError</p>
-    }
-    <RadzenScheduler @ref="scheduler" TItem="CalendarEvent" Data="@visibleEvents" StartProperty="StartLocal"
+    <RadzenScheduler TItem="CalendarEvent" Data="@visibleEvents" StartProperty="StartLocal"
                      EndProperty="EndLocal" TextProperty="Title" SelectedIndex="2"
-                     AppointmentRender="@RenderAppointment" AppointmentMove="@AppointmentMoved"
+                     AppointmentRender="@RenderAppointment"
                      Style="height:720px;">
         <Template Context="calendarItem">
             <a class="calendar-appointment-link" href="@($"#event-{calendarItem.Id:N}")"
@@ -180,7 +175,6 @@
     [SupplyParameterFromQuery(Name = "event")]
     public string? EventResult { get; set; }
 
-    private RadzenScheduler<CalendarEvent>? scheduler;
     private List<CalendarEvent> events = [];
     private bool showDailyPrayer;
     private List<CalendarEvent> visibleEvents => showDailyPrayer
@@ -188,7 +182,6 @@
         : events.Where(e => e.Category != "Prayer" || e.Title != "Daily prayer & Examen").ToList();
     private List<Reading> readings = [];
     private bool isAdmin;
-    private string moveError = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -206,7 +199,6 @@
         await using var db = await DbFactory.CreateDbContextAsync();
         events = await db.CalendarEvents.AsNoTracking().Where(e => e.GroupId == 1)
             .OrderBy(e => e.StartLocal).ToListAsync();
-        if (scheduler is not null) await scheduler.Reload();
     }
 
     private void RenderAppointment(SchedulerAppointmentRenderEventArgs<CalendarEvent> args)
@@ -224,30 +216,4 @@
         args.Attributes["style"] = $"background-color:{color};border-color:{color};";
     }
 
-    // Keep drag-and-drop for live Blazor circuits. Creation and event details
-    // do NOT depend on it and also work for browsers without a circuit.
-    private async Task AppointmentMoved(SchedulerAppointmentMoveEventArgs args)
-    {
-        var moved = args.Appointment?.Data as CalendarEvent;
-        if (!isAdmin || moved is null
-            || !await MemberAccess.IsAdministratorAsync(
-                (await Authentication.GetAuthenticationStateAsync()).User))
-        {
-            moveError = "Administrator access is required to move an event.";
-            if (scheduler is not null) await scheduler.Reload();
-            return;
-        }
-
-        var duration = moved.EndLocal - moved.StartLocal;
-        var newStart = args.SlotDate.TimeOfDay == TimeSpan.Zero
-            ? args.SlotDate.Date.Add(moved.StartLocal.TimeOfDay) : args.SlotDate;
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var ev = await db.CalendarEvents.FirstOrDefaultAsync(
-            e => e.Id == moved.Id && e.GroupId == 1);
-        if (ev is null) return;
-        ev.StartLocal = newStart;
-        ev.EndLocal = newStart + duration;
-        await db.SaveChangesAsync();
-        await ReloadEvents();
-    }
 }
