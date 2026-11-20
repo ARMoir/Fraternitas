@@ -75,6 +75,48 @@ form[action="/documents/upload"] input[type=file]{width:min(100%,460px)}
 .calendar-toolbar .calendar-toggle{margin:0;display:inline-flex;align-items:center;gap:.65rem;line-height:1.45;cursor:pointer}
 .calendar-preference-form{margin:0;display:flex;align-items:center;flex-wrap:wrap;gap:.45rem 1rem;max-width:100%}
 
+/* Fully server-rendered calendar: navigation and event links work without WebSockets. */
+.frat-calendar-navigation{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;padding:.45rem 0 1.15rem}
+.frat-calendar-period{display:flex;align-items:center;flex-wrap:wrap;gap:.55rem}
+.frat-calendar-period strong{color:#254b3c;font-size:1.13rem;margin-left:.45rem;white-space:nowrap}
+.frat-calendar-nav-button,.frat-calendar-today{display:inline-flex;align-items:center;justify-content:center;height:34px;min-width:35px;padding:.25rem .55rem;border:1px solid #d6dfd5;border-radius:7px;background:#f6f8f4;color:#275d46;font-weight:700}
+.frat-calendar-nav-button{font-size:1.4rem;line-height:1}
+.frat-calendar-today{font-size:.85rem}
+.frat-calendar-nav-button:hover,.frat-calendar-today:hover{background:#e8f0e8;text-decoration:none}
+.frat-calendar-view-options{display:flex;overflow:hidden;border:1px solid #d6dfd5;border-radius:8px}
+.frat-calendar-view-options a{padding:.53rem .95rem;font-size:.85rem;color:#355546;background:#f7faf5}
+.frat-calendar-view-options a+a{border-left:1px solid #d6dfd5}
+.frat-calendar-view-options a.active{background:#2d6751;color:white;font-weight:700}
+.frat-calendar-view-options a:hover{text-decoration:none;background:#deeadf;color:#214634}
+.frat-calendar-view-options a.active:hover{background:#24543e;color:#fff}
+.frat-calendar-month{min-width:680px}
+.frat-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid #dae1da;border-left:1px solid #dae1da}
+.frat-calendar-weekday{background:#eff4ef;font-weight:700;font-size:.82rem;color:#3d624c;text-align:center;padding:.75rem .2rem;border-right:1px solid #dae1da;border-bottom:1px solid #dae1da}
+.frat-calendar-day{background:#fff;min-height:135px;min-width:0;padding:.4rem .3rem .55rem;border-right:1px solid #dae1da;border-bottom:1px solid #dae1da}
+.frat-calendar-other-month{background:#f8f9f6}
+.frat-calendar-other-month .frat-calendar-day-number{color:#94a397}
+.frat-calendar-day-number{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;min-width:28px;height:28px;padding:0 .2rem;color:#516d5d;font-size:.9rem;margin-bottom:.25rem}
+.frat-calendar-day-number:hover{background:#e6eee7;text-decoration:none}
+.frat-calendar-day-number.is-today{background:#2d6751;color:white;font-weight:750}
+.frat-calendar-appointments{display:flex;flex-direction:column;gap:3px;min-width:0}
+.frat-calendar-event{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;background:#245d4b;color:#fff!important;text-decoration:none!important;border-radius:4px;padding:3px 5px;font-size:.76rem;line-height:1.35}
+.frat-calendar-event:hover,.frat-calendar-event:focus-visible{filter:brightness(.9);text-decoration:underline!important}
+.frat-calendar-fasting{background:#a26830}
+.frat-calendar-prayer{background:#536b9a}
+.frat-calendar-fellowship{background:#845e88}
+.frat-calendar-scripture{background:#5473a3}
+.frat-calendar-other{background:#687970}
+.frat-calendar-more{font-size:.76rem;color:#536b5c;text-decoration:underline}
+.frat-calendar-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));min-width:680px;border-top:1px solid #dae1da;border-left:1px solid #dae1da}
+.frat-calendar-week-day{min-width:0;min-height:300px;padding:.7rem .4rem;border-right:1px solid #dae1da;border-bottom:1px solid #dae1da}
+.frat-calendar-week-day h3{font-size:.88rem;margin:0 0 .75rem}
+.frat-calendar-week-day .frat-calendar-event{margin:.25rem 0;white-space:normal;overflow-wrap:anywhere}
+.frat-calendar-single-day{padding:1rem 0}
+.frat-calendar-single-day h2{margin:0 0 1rem}
+.frat-calendar-single-day .frat-calendar-event{white-space:normal;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.2rem 1rem;margin:.5rem 0;padding:.85rem .95rem;font-size:.94rem}
+.frat-calendar-single-day .frat-calendar-event small{color:#f2f5ef;font-size:.82rem}
+@media(max-width:680px){.frat-calendar-period strong{font-size:1rem}.frat-calendar-nav-button{min-width:31px}.frat-calendar-navigation{gap:.65rem}.frat-calendar-day{min-height:115px}.frat-calendar-event{font-size:.73rem}}
+
 /* Native event windows and forms: work without a live Blazor connection. */
 .calendar-appointment-link{display:block;width:100%;height:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff!important;text-decoration:none!important;cursor:pointer}
 .calendar-appointment-link:hover,.calendar-appointment-link:focus-visible{color:#fff!important;text-decoration:underline!important}
