@@ -103,12 +103,15 @@ jobs:
           ! grep -q "Previous week" "$RUNNER_TEMP/home.html"
           ! grep -q "Next week" "$RUNNER_TEMP/home.html"
           ! grep -q "Upcoming gatherings" "$RUNNER_TEMP/home.html"
-          # Catch missing Radzen CSS, which would leave the scheduler unstyled and icons as text.
-          grep -q "_content/Radzen.Blazor/css/material-base.css" "$RUNNER_TEMP/home.html"
-          curl --silent --show-error --fail "http://127.0.0.1:5088/_content/Radzen.Blazor/css/material-base.css" \
-            -o "$RUNNER_TEMP/radzen-material.css"
-          test -s "$RUNNER_TEMP/radzen-material.css"
-          echo "Radzen Material stylesheet served successfully"
+          # The entire site is static server-rendered. No live Blazor circuit,
+          # or Radzen asset, should be needed for buttons or calendar navigation.
+          ! grep -q "_content/Radzen.Blazor" "$RUNNER_TEMP/home.html"
+          ! grep -q "_framework/blazor.web.js" "$RUNNER_TEMP/home.html"
+          curl --silent --show-error --fail "http://127.0.0.1:5088/app.css" \
+            -o "$RUNNER_TEMP/app.css"
+          test -s "$RUNNER_TEMP/app.css"
+          grep -q "frat-calendar-grid" "$RUNNER_TEMP/app.css"
+          echo "Static server-rendered site and native calendar styles verified"
           # Regression-check the one-time Advent 2026 seed and Catholic wording.
           python3 - <<'PY'
           import os, sqlite3
