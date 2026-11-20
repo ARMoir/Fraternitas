@@ -13,6 +13,10 @@
     <p>Prayer, fasting, Sacred Scripture, and fellowship in Christ. All times are Eastern.</p>
 </div>
 <div id="calendar-top" class="panel calendar-panel">
+    @if (EventResult == "deleted")
+    {
+        <p class="upload-success" role="status">The event was removed from the group calendar.</p>
+    }
     <div class="calendar-toolbar">
         @if (isAdmin)
         {
@@ -171,6 +175,10 @@
     [Parameter]
     [SupplyParameterFromQuery(Name = "create")]
     public string? CreateResult { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "event")]
+    public string? EventResult { get; set; }
 
     private RadzenScheduler<CalendarEvent>? scheduler;
     private List<CalendarEvent> events = [];
