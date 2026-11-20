@@ -62,6 +62,8 @@ builder.Services.AddHttpClient<CatholicBibleService>(client =>
 });
 builder.Services.AddScoped<ScripturePinService>();
 builder.Services.AddScoped<MemberAccessService>();
+// User-specific calendar and future UI preferences are stored in Identity's SQLite claims table.
+builder.Services.AddScoped<UserPreferencesService>();
 // Refresh HTTP authorization cookies after an administrator changes a user's role.
 builder.Services.Configure<Microsoft.AspNetCore.Identity.SecurityStampValidatorOptions>(options =>
     options.ValidationInterval = TimeSpan.FromMinutes(1));
