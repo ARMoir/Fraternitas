@@ -11,6 +11,7 @@ public static class AdventCalendarSeeder
 {
     private const string SeedKey = "advent-2026-calendar-v1";
     private const string FastingUpdateKey = "advent-2026-fasting-until-4pm-v2";
+    private const string CatholicLanguageUpdateKey = "advent-2026-catholic-language-v1";
 
     private static string FastingTitle(bool wednesday) =>
         wednesday ? "Wednesday fast until 4 PM + meatless" : "Friday fast until 4 PM";
@@ -50,6 +51,7 @@ public static class AdventCalendarSeeder
         {
             await transaction.CommitAsync();
             await UpgradeExistingFastsAsync(db, logger);
+            await UpgradeCatholicLanguageAsync(db, logger);
             return;
         }
 
@@ -99,7 +101,7 @@ public static class AdventCalendarSeeder
                     2. Read again: what deeper meaning do you notice?
                     3. Read a third time: how does this connect to your own life this Advent?
 
-                    Share reflections and check in on prayer, asceticism, and fraternity.
+                    Share reflections on prayer, penance, and fraternity in Christ.
                     Close with one decade of the Rosary.
 
                     Meeting: Monday 8:00–9:00 PM Eastern, on Zoom.
@@ -142,9 +144,9 @@ public static class AdventCalendarSeeder
 
                     Practice the daily Ignatian Examen: reflect on where you recognized God working in your day, where you felt distant, and how you responded.
 
-                    Daily digital asceticism: turn off your phone whenever it isn't required for work or ministry. Giving up TV instead is an acceptable alternative agreed by the group.
+                    As a daily sacrifice, set aside your phone whenever it is not required for work or ministry. Abstaining from television is another option agreed by the group.
 
-                    Choose your own time for these personal practices. No compliance or completion tracking.
+                    Choose a time for these personal practices and offer them to God in prayer.
                     """
             });
         }
@@ -153,8 +155,52 @@ public static class AdventCalendarSeeder
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
         await UpgradeExistingFastsAsync(db, logger);
+        await UpgradeCatholicLanguageAsync(db, logger);
         logger.LogInformation("Seeded {Count} Advent 2026 calendar entries (5 meetings, Wednesday/Friday fasting, daily prayer/Examen), without overwriting existing events.", seed.Count);
     }
+    private static async Task UpgradeCatholicLanguageAsync(FraternityDb db, ILogger logger)
+    {
+        // A one-time upgrade for Advent descriptions already present in SQLite.
+        // Only replace specific starter phrases; preserve all other administrator edits.
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var applied = await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT OR IGNORE INTO "AppSeedHistory" ("Key", "AppliedUtc")
+            VALUES ({CatholicLanguageUpdateKey}, {DateTime.UtcNow.ToString("O")});
+            """);
+        if (applied == 0)
+        {
+            await transaction.CommitAsync();
+            return;
+        }
+
+        var entries = await db.CalendarEvents
+            .Where(e => e.GroupId == 1 && e.StartLocal >= FirstMonday
+                && e.StartLocal < LastAdventDay.AddDays(1))
+            .ToListAsync();
+        var changed = 0;
+        foreach (var ev in entries)
+        {
+            var description = ev.Description
+                .Replace(
+                    "Share reflections and check in on prayer, asceticism, and fraternity.",
+                    "Share reflections on prayer, penance, and fraternity in Christ.")
+                .Replace(
+                    "Daily digital asceticism: turn off your phone whenever it isn't required for work or ministry. Giving up TV instead is an acceptable alternative agreed by the group.",
+                    "As a daily sacrifice, set aside your phone whenever it is not required for work or ministry. Abstaining from television is another option agreed by the group.")
+                .Replace(
+                    "Choose your own time for these personal practices. No compliance or completion tracking.",
+                    "Choose a time for these personal practices and offer them to God in prayer.");
+            if (description == ev.Description)
+                continue;
+            ev.Description = description;
+            changed++;
+        }
+
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        logger.LogInformation("Updated Catholic wording in {Count} existing Advent entries without replacing other edits.", changed);
+    }
+
     private static async Task UpgradeExistingFastsAsync(FraternityDb db, ILogger logger)
     {
         // Safe for existing SQLite installations: no table/column migration.
