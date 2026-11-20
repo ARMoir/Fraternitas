@@ -164,7 +164,7 @@ app.Use(async (context, next) =>
         }
 
         context.Response.ContentType = "text/css; charset=utf-8";
-        context.Response.ContentLength = new FileInfo(appCssPath).Length;
+        context.Response.ContentLength = new System.IO.FileInfo(appCssPath).Length;
         context.Response.Headers.CacheControl = "no-store, max-age=0";
         context.Response.Headers.Pragma = "no-cache";
         context.Response.Headers.Expires = "0";
