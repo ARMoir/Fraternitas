@@ -71,30 +71,19 @@ else
     private CalendarEvent? ev;
     private List<SharedDocument> documents = [];
     private CatholicPassage? passage;
-    private Guid? requestedPassageForEvent;
     protected override async Task OnParametersSetAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         ev = await db.CalendarEvents.AsNoTracking().Include(x => x.Reading)
             .FirstOrDefaultAsync(x => x.Id == Id && x.GroupId == 1);
-        passage = null;
-        requestedPassageForEvent = null;
         documents = await db.SharedDocuments.AsNoTracking()
-            .Where(d => d.GroupId == 1 && d.EventId == Id).OrderBy(d => d.FileName).ToListAsync();
-    }
+            .Where(d => d.GroupId == 1 && d.EventId == Id)
+            .OrderBy(d => d.FileName).ToListAsync();
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (ev?.Reading is null || requestedPassageForEvent == ev.Id) return;
-        var requestedId = ev.Id;
-        var reference = ev.Reading.Scripture;
-        requestedPassageForEvent = requestedId;
-
-        var loaded = await Bible.GetPassageAsync(reference);
-        if (ev?.Id == requestedId)
-        {
-            passage = loaded;
-            await InvokeAsync(StateHasChanged);
-        }
+        // Pre-render the Catholic Scripture reading even when the live Blazor
+        // connection is unavailable. The Bible service caches verified results.
+        passage = ev?.Reading is null
+            ? null
+            : await Bible.GetPassageAsync(ev.Reading.Scripture);
     }
 }
