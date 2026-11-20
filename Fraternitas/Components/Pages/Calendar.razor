@@ -28,7 +28,7 @@
                        checked="@showDailyPrayer" onchange="this.form.requestSubmit()" />
                 Show daily prayer, examination of conscience, and sacrifices
             </label>
-            <noscript><button class="action compact" type="submit">Save preference</button></noscript>
+            <button class="action secondary compact" type="submit">Apply</button>
         </form>
     </div>
     <RadzenScheduler @ref="scheduler" TItem="CalendarEvent" Data="@visibleEvents" StartProperty="StartLocal"
