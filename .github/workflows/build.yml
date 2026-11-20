@@ -248,6 +248,117 @@ jobs:
           grep -q 'Advent-Prayer.txt' "$RUNNER_TEMP/documents-after-upload.html"
           echo "Uploaded document is visible in the resource library"
 
+          # Calendar creation and event details must work without a Blazor circuit.
+          curl --silent --show-error --fail -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/calendar" -o "$RUNNER_TEMP/calendar-native.html"
+          grep -q 'href="#create-event"' "$RUNNER_TEMP/calendar-native.html"
+          grep -q 'action="/calendar/events/create"' "$RUNNER_TEMP/calendar-native.html"
+          create_csrf=$(python3 - "$RUNNER_TEMP/calendar-native.html" <<'PY'
+          import sys
+          from html.parser import HTMLParser
+          class FormParser(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.in_form = False
+                  self.token = None
+              def handle_starttag(self, tag, attrs):
+                  a = dict(attrs)
+                  if tag == "form":
+                      self.in_form = a.get("action") == "/calendar/events/create"
+                  elif self.in_form and tag == "input" and a.get("name") == "__RequestVerificationToken":
+                      self.token = a.get("value")
+              def handle_endtag(self, tag):
+                  if tag == "form":
+                      self.in_form = False
+          parser = FormParser()
+          parser.feed(open(sys.argv[1], encoding="utf-8").read())
+          if not parser.token:
+              raise SystemExit("No protected event creation form")
+          print(parser.token)
+          PY
+          )
+          curl -sS -D "$RUNNER_TEMP/create-event-headers" -o /dev/null \
+            -b "$RUNNER_TEMP/cookies.txt" \
+            --data-urlencode "__RequestVerificationToken=$create_csrf" \
+            --data-urlencode "title=Advent calendar event smoke test" \
+            --data-urlencode "startLocal=2026-11-23T15:00" \
+            --data-urlencode "endLocal=2026-11-23T16:00" \
+            --data-urlencode "category=Meeting" \
+            --data-urlencode "readingId=" \
+            --data-urlencode "description=Smoke-test event details" \
+            --data-urlencode "scripture=Luke 1:26-38" \
+            "http://127.0.0.1:5088/calendar/events/create"
+          grep -qE '^HTTP/[^ ]+ 302' "$RUNNER_TEMP/create-event-headers"
+          event_id=$(python3 - "$RUNNER_TEMP/create-event-headers" <<'PY'
+          import re, sys, uuid
+          headers = open(sys.argv[1], encoding="utf-8").read()
+          match = re.search(r"^location:\s*/calendar#event-([0-9a-f]{32})", headers, re.I | re.M)
+          if not match:
+              raise SystemExit("Missing event details hash in redirect")
+          print(str(uuid.UUID(hex=match.group(1))))
+          PY
+          )
+          curl -sS -f -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/calendar" -o "$RUNNER_TEMP/calendar-after-create.html"
+          event_hex=$(echo "$event_id" | tr -d '-')
+          grep -q "id=\"event-$event_hex\"" "$RUNNER_TEMP/calendar-after-create.html"
+          grep -q "href=\"#event-$event_hex\"" "$RUNNER_TEMP/calendar-after-create.html"
+          grep -q 'Smoke-test event details' "$RUNNER_TEMP/calendar-after-create.html"
+          echo "Calendar contains a native event details window and linked appointment"
+
+          curl -sS -f -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/events/$event_id/edit" -o "$RUNNER_TEMP/event-editor.html"
+          grep -q "action=\"/calendar/events/$event_id/update\"" "$RUNNER_TEMP/event-editor.html"
+          edit_csrf=$(python3 - "$RUNNER_TEMP/event-editor.html" <<'PY'
+          import sys
+          from html.parser import HTMLParser
+          class TokenParser(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.token = None
+              def handle_starttag(self, tag, attrs):
+                  a = dict(attrs)
+                  if tag == "input" and a.get("name") == "__RequestVerificationToken" and not self.token:
+                      self.token = a.get("value")
+          parser = TokenParser()
+          parser.feed(open(sys.argv[1], encoding="utf-8").read())
+          if not parser.token:
+              raise SystemExit("Editor missing antiforgery token")
+          print(parser.token)
+          PY
+          )
+          curl -sS -D "$RUNNER_TEMP/edit-event-headers" -o /dev/null \
+            -b "$RUNNER_TEMP/cookies.txt" \
+            --data-urlencode "__RequestVerificationToken=$edit_csrf" \
+            --data-urlencode "title=Updated Advent event smoke test" \
+            --data-urlencode "startLocal=2026-11-23T15:00" \
+            --data-urlencode "endLocal=2026-11-23T16:00" \
+            --data-urlencode "category=Meeting" \
+            --data-urlencode "description=Updated event details" \
+            --data-urlencode "scripture=Luke 1:26-38" \
+            "http://127.0.0.1:5088/calendar/events/$event_id/update"
+          grep -qE '^HTTP/[^ ]+ 302' "$RUNNER_TEMP/edit-event-headers"
+          python3 - "$event_id" <<'PY'
+          import os, sqlite3, sys
+          con = sqlite3.connect(os.path.join(os.environ["FRATERNITAS_DATA_DIR"], "fraternitas.db"))
+          rows = con.execute("SELECT Title, Description FROM CalendarEvents WHERE Id = ?", (sys.argv[1],)).fetchall()
+          assert rows == [("Updated Advent event smoke test", "Updated event details")], rows
+          print("Native calendar event update persisted")
+          PY
+          curl -sS -D "$RUNNER_TEMP/delete-event-headers" -o /dev/null \
+            -b "$RUNNER_TEMP/cookies.txt" \
+            --data-urlencode "__RequestVerificationToken=$edit_csrf" \
+            --data-urlencode "confirmDelete=yes" \
+            "http://127.0.0.1:5088/calendar/events/$event_id/delete"
+          grep -qE '^HTTP/[^ ]+ 302' "$RUNNER_TEMP/delete-event-headers"
+          python3 - "$event_id" <<'PY'
+          import os, sqlite3, sys
+          con = sqlite3.connect(os.path.join(os.environ["FRATERNITAS_DATA_DIR"], "fraternitas.db"))
+          count = con.execute("SELECT COUNT(*) FROM CalendarEvents WHERE Id = ?", (sys.argv[1],)).fetchone()[0]
+          assert count == 0, "Calendar event delete did not persist"
+          print("Native calendar event deletion persisted")
+          PY
+
       - name: Smoke test first-run web administrator wizard
         shell: bash
         run: |
