@@ -146,6 +146,34 @@ app.Use(async (context, next) =>
 });
 
 app.UseHttpsRedirection();
+// Serve our small site stylesheet directly from disk. This avoids intermittent
+// empty HTTP 200 responses from the published static-assets endpoint on the Pi.
+// No-store also prevents proxies or browsers from retaining a broken response.
+var appCssPath = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"), "app.css");
+app.Use(async (context, next) =>
+{
+    if (string.Equals(context.Request.Path.Value, "/app.css", StringComparison.OrdinalIgnoreCase)
+        && (HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method)))
+    {
+        if (!File.Exists(appCssPath))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        context.Response.ContentType = "text/css; charset=utf-8";
+        context.Response.ContentLength = new FileInfo(appCssPath).Length;
+        context.Response.Headers.CacheControl = "no-store, max-age=0";
+        context.Response.Headers.Pragma = "no-cache";
+        context.Response.Headers.Expires = "0";
+
+        if (HttpMethods.IsGet(context.Request.Method))
+            await context.Response.SendFileAsync(appCssPath);
+        return;
+    }
+
+    await next();
+});
 app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
