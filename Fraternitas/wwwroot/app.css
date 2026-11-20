@@ -48,6 +48,9 @@ input:focus,textarea:focus,select:focus{outline:2px solid #accbbb;outline-offset
 input[type=file]{display:block;padding:.8rem;border:1px dashed #bbc7bb;border-radius:8px;max-width:100%}
 textarea{resize:vertical;line-height:1.5}.two-columns{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
 .error{color:#a3362f;font-weight:600}
+.upload-success{color:#246848;font-weight:700;margin-top:1rem}
+form[action="/documents/upload"] .action{margin-top:.85rem}
+form[action="/documents/upload"] input[type=file]{width:min(100%,460px)}
 .pre-line{white-space:pre-wrap;overflow-wrap:anywhere}
 .discussion-row{align-items:flex-start;justify-content:space-between}.discussion-row p{margin:.35rem 0;color:#5f7065;white-space:pre-wrap;overflow-wrap:anywhere}
 .discussion-row small,.reply-meta small{color:#818a82;font-size:.83rem}
