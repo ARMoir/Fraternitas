@@ -10,7 +10,7 @@
 <div class="page-head">
     <div class="eyebrow">GROUP CALENDAR</div>
     <h1>Our shared calendar</h1>
-    <p>Meetings, fasting days, scripture gatherings and fellowship. All times are Eastern.</p>
+    <p>Prayer, fasting, Sacred Scripture, and fellowship in Christ. All times are Eastern.</p>
 </div>
 <div class="panel calendar-panel">
     <div class="calendar-toolbar">
@@ -19,14 +19,17 @@
             <button class="action compact" @onclick="NewEvent">+ Add event</button>
             <a class="action secondary compact" href="/readings">📌 Pin Scripture</a>
         }
-        <label class="calendar-toggle">
-            <input type="checkbox" checked="@showDailyPrayer" @onchange="ToggleDailyPrayer" />
-            Show daily prayer, Examen &amp; screen-time commitments
-        </label>
-        @if (!string.IsNullOrEmpty(preferenceError))
-        {
-            <span class="error" role="alert">@preferenceError</span>
-        }
+        @* This is a real HTTP POST, not a Blazor-only event. It works even when
+           the server-side Blazor circuit has not connected or reconnects. *@
+        <form method="post" action="/calendar/preferences/daily-prayer" class="calendar-preference-form">
+            <AntiforgeryToken />
+            <label class="calendar-toggle">
+                <input type="checkbox" name="showDailyPrayer" value="true"
+                       checked="@showDailyPrayer" onchange="this.form.requestSubmit()" />
+                Show daily prayer, examination of conscience, and sacrifices
+            </label>
+            <noscript><button class="action compact" type="submit">Save preference</button></noscript>
+        </form>
     </div>
     <RadzenScheduler @ref="scheduler" TItem="CalendarEvent" Data="@visibleEvents" StartProperty="StartLocal"
                      EndProperty="EndLocal" TextProperty="Title" SelectedIndex="2"
@@ -78,31 +81,10 @@
     private RadzenScheduler<CalendarEvent>? scheduler;
     private List<CalendarEvent> events = [];
     private bool showDailyPrayer;
-    private string preferenceError = "";
     private List<CalendarEvent> visibleEvents => showDailyPrayer
         ? events
         : events.Where(e => e.Category != "Prayer" || e.Title != "Daily prayer & Examen").ToList();
 
-    private async Task ToggleDailyPrayer(ChangeEventArgs args)
-    {
-        var enabled = args.Value is bool checkedValue && checkedValue;
-        var previous = showDailyPrayer;
-        preferenceError = "";
-        showDailyPrayer = enabled;
-
-        try
-        {
-            var state = await Authentication.GetAuthenticationStateAsync();
-            await Preferences.SetBooleanAsync(state.User, UserPreferencesService.CalendarShowDailyPrayer, enabled);
-        }
-        catch
-        {
-            showDailyPrayer = previous;
-            preferenceError = "Could not save your calendar preference. Please try again.";
-        }
-
-        if (scheduler is not null) await scheduler.Reload();
-    }
     private List<Reading> readings = [];
     private EventEditor draft = new();
     private bool isAdmin;
