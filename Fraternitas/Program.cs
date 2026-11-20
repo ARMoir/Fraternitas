@@ -90,6 +90,13 @@ if (args.Contains("verify-member-access", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+// Regression verification of per-user calendar preferences with disposable SQLite.
+if (args.Contains("verify-user-preferences", StringComparer.OrdinalIgnoreCase))
+{
+    await UserPreferenceVerifier.VerifyAsync(app.Services);
+    return;
+}
+
 // Integration test helper; run only with a disposable data directory.
 if (args.Contains("verify-scripture-pins", StringComparer.OrdinalIgnoreCase))
 {
