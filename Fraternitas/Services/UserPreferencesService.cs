@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Fraternitas.Data;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -64,5 +65,43 @@ public sealed class UserPreferencesService(IDbContextFactory<FraternityDb> dbFac
         }
 
         await db.SaveChangesAsync();
+    }
+}
+
+
+/// <summary>
+/// A standard form endpoint makes calendar preferences work even when the Blazor
+/// Server websocket is unavailable. Authentication is required, and the
+/// antiforgery token is validated just like the site's sign-in forms.
+/// </summary>
+public static class UserPreferenceEndpoints
+{
+    public static void MapUserPreferenceEndpoints(this WebApplication app)
+    {
+        app.MapPost("/calendar/preferences/daily-prayer",
+            async (HttpContext context, IAntiforgery antiforgery,
+                UserPreferencesService preferences) =>
+            {
+                if (!context.Request.HasFormContentType)
+                    return Results.BadRequest("Invalid calendar preference request.");
+
+                try
+                {
+                    await antiforgery.ValidateRequestAsync(context);
+                }
+                catch (AntiforgeryValidationException)
+                {
+                    return Results.BadRequest("Your session expired. Reload the calendar and try again.");
+                }
+
+                var form = await context.Request.ReadFormAsync();
+                // When a checkbox is unchecked the browser omits its field.
+                var enabled = form.TryGetValue("showDailyPrayer", out var value)
+                    && string.Equals(value.ToString(), "true", StringComparison.OrdinalIgnoreCase);
+                await preferences.SetBooleanAsync(
+                    context.User, UserPreferencesService.CalendarShowDailyPrayer, enabled);
+
+                return Results.LocalRedirect("/calendar");
+            }).RequireAuthorization();
     }
 }
