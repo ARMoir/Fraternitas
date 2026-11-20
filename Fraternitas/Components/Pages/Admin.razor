@@ -3,7 +3,6 @@
 @inject IDbContextFactory<FraternityDb> DbFactory
 @inject NavigationManager Navigation
 @inject MemberAccessService Access
-@inject AuthenticationStateProvider Authentication
 
 <PageTitle>Administration | Fraternitas</PageTitle>
 <div class="page-head">
@@ -26,15 +25,10 @@
                 only work on this computer until you host Fraternitas at an address everyone
                 can reach. Do not send a localhost link to the group.</p>
         }
-        <button class="action" @onclick="CreateInvitation">Create group invitation link</button>
-        @if (!string.IsNullOrEmpty(invitationUrl))
-        {
-            <label>Share this invitation URL with the group
-                <input readonly value="@invitationUrl" onclick="this.select()" />
-            </label>
-            <p class="muted small">Copy and save this URL now. For security, only its hash
-                is stored, so the full link cannot be shown again later.</p>
-        }
+        <form method="post" action="/admin/invitations/create" data-enhance="false">
+            <AntiforgeryToken />
+            <button class="action" type="submit">Create group invitation link</button>
+        </form>
 
         <h3>Active shared links</h3>
         @if (activeInvites.Count == 0)
@@ -48,7 +42,11 @@
                     <strong>Group invitation</strong>
                     <small>Expires @invitation.ExpiresUtc.ToLocalTime().ToString("MMM d, yyyy · h:mm tt")</small>
                 </span>
-                <button class="danger-button" @onclick="() => RevokeInvitation(invitation.Id)">Revoke</button>
+                <form method="post" action="/admin/invitations/revoke" data-enhance="false">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="invitationId" value="@invitation.Id" />
+                    <button class="danger-button" type="submit">Revoke</button>
+                </form>
             </div>
         }
         <p class="muted small">Anyone with an active link may join, so share it only with intended members.
@@ -70,13 +68,17 @@
     <p class="muted small">Role changes are saved permanently. The affected member should sign out and back
        in (or fully reload their session) for the updated access to take effect.</p>
 
-    @if (!string.IsNullOrEmpty(roleError))
+    @if (ActionStatus == "role-saved")
     {
-        <p class="error" role="alert">@roleError</p>
+        <p class="upload-success" role="status">Member access saved.</p>
     }
-    @if (!string.IsNullOrEmpty(roleMessage))
+    else if (ActionStatus == "invite-revoked")
     {
-        <p class="muted" role="status">@roleMessage</p>
+        <p class="upload-success" role="status">The invitation was revoked.</p>
+    }
+    else if (ActionStatus == "failed")
+    {
+        <p class="error" role="alert">The requested change could not be saved. Reload the page and try again.</p>
     }
 
     @foreach (var member in members)
@@ -90,13 +92,21 @@
                 <span class="member-access-role">@(member.IsMemberOnly ? "Member only" : "Administrator")</span>
                 @if (member.IsMemberOnly)
                 {
-                    <button type="button" class="action secondary compact" disabled="@changingRole"
-                            @onclick="() => ChangeRole(member.Id, false)">Make administrator</button>
+                    <form method="post" action="/admin/members/role" data-enhance="false">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="userId" value="@member.Id" />
+                        <input type="hidden" name="memberOnly" value="false" />
+                        <button type="submit" class="action secondary compact">Make administrator</button>
+                    </form>
                 }
                 else
                 {
-                    <button type="button" class="action secondary compact" disabled="@changingRole"
-                            @onclick="() => ChangeRole(member.Id, true)">Set member only</button>
+                    <form method="post" action="/admin/members/role" data-enhance="false">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="userId" value="@member.Id" />
+                        <input type="hidden" name="memberOnly" value="true" />
+                        <button type="submit" class="action secondary compact">Set member only</button>
+                    </form>
                 }
             </div>
         </div>
@@ -104,20 +114,17 @@
 </section>
 
 @code {
-    private string invitationUrl = "";
-    private Guid? newlyCreatedInviteId;
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "status")]
+    public string? ActionStatus { get; set; }
+
     private List<Invitation> activeInvites = [];
     private int memberCount;
     private int eventCount;
     private int outstandingInvites;
     private List<MemberAccessRow> members = [];
-    private string roleError = "";
-    private string roleMessage = "";
-    private bool changingRole;
 
-    protected override async Task OnInitializedAsync() => await LoadCounts();
-
-    private async Task LoadCounts()
+    protected override async Task OnInitializedAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         memberCount = await db.Users.CountAsync(u => u.GroupId == 1);
@@ -128,82 +135,4 @@
         outstandingInvites = activeInvites.Count;
         members = await Access.GetMembersAsync();
     }
-
-    private async Task CreateInvitation()
-    {
-        if (!await Access.IsAdministratorAsync((await Authentication.GetAuthenticationStateAsync()).User))
-        {
-            roleError = "Your administrator access has changed. Please sign in again.";
-            return;
-        }
-        var code = AccountEndpoints.NewToken();
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var invitation = new Invitation
-        {
-            TokenSha256 = AccountEndpoints.Hash(code),
-            ExpiresUtc = DateTime.UtcNow.AddDays(7),
-            GroupId = 1
-        };
-        db.Invitations.Add(invitation);
-        await db.SaveChangesAsync();
-        newlyCreatedInviteId = invitation.Id;
-        invitationUrl = Navigation.ToAbsoluteUri("/account/join?code=" + Uri.EscapeDataString(code)).ToString();
-        await LoadCounts();
-    }
-
-    private async Task RevokeInvitation(Guid invitationId)
-    {
-        if (!await Access.IsAdministratorAsync((await Authentication.GetAuthenticationStateAsync()).User))
-        {
-            roleError = "Your administrator access has changed. Please sign in again.";
-            return;
-        }
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var invitation = await db.Invitations.FirstOrDefaultAsync(i =>
-            i.Id == invitationId && i.GroupId == 1 && i.RedeemedUtc == null);
-        if (invitation is null) return;
-
-        // Reuse the legacy RedeemedUtc field as a deactivation marker.
-        // Avoid an EF schema change for existing installed SQLite databases.
-        invitation.RedeemedUtc = DateTime.UtcNow;
-        await db.SaveChangesAsync();
-        if (newlyCreatedInviteId == invitationId)
-        {
-            invitationUrl = "";
-            newlyCreatedInviteId = null;
-        }
-        await LoadCounts();
-    }
-    private async Task ChangeRole(string userId, bool memberOnly)
-    {
-        if (changingRole) return;
-        changingRole = true;
-        roleError = "";
-        roleMessage = "";
-        try
-        {
-            var state = await Authentication.GetAuthenticationStateAsync();
-            await Access.SetMemberOnlyAsync(state.User, userId, memberOnly);
-            await LoadCounts();
-            roleMessage = memberOnly
-                ? "Member-only access saved. The user should sign in again."
-                : "Administrator access restored. The user should sign in again.";
-
-            if (memberOnly && state.User.FindFirstValue(ClaimTypes.NameIdentifier) == userId)
-            {
-                // Don't keep using the current interactive admin circuit after self-demotion.
-                Navigation.NavigateTo("/account/logout", forceLoad: true);
-            }
-        }
-        catch (Exception ex) when (ex is UnauthorizedAccessException
-            or ArgumentException or InvalidOperationException)
-        {
-            roleError = ex.Message;
-        }
-        finally
-        {
-            changingRole = false;
-        }
-    }
-
 }
