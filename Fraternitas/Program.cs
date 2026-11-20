@@ -217,6 +217,9 @@ app.MapAccountEndpoints();
 app.MapUserPreferenceEndpoints();
 app.MapDocumentUploadEndpoints();
 app.MapCalendarEventEndpoints();
+app.MapAdminActionEndpoints();
+app.MapDiscussionActionEndpoints();
+app.MapScripturePinEndpoints();
 app.MapGet("/resources/file/{id:guid}", async (Guid id, IDbContextFactory<FraternityDb> factory,
     DataStorage storage) =>
 {
