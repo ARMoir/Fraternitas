@@ -1,0 +1,133 @@
+@using Fraternitas.Services
+@inject CatholicBibleService Bible
+
+<section id="bible-browser" class="panel bible-browser">
+    <div class="section-head">
+        <div>
+            <div class="eyebrow">CATHOLIC SCRIPTURE</div>
+            <h2>Browse the Holy Bible</h2>
+        </div>
+        <span class="muted small">Douay–Rheims · 73 books</span>
+    </div>
+    <p class="muted small">Choose any book and chapter, then select a verse to pin it
+       @(DiscussionId.HasValue ? "as a reply in this conversation." : "as a new group discussion.")
+       This browser is not limited to the assigned readings.</p>
+
+    @if (books.Count == 0)
+    {
+        <p class="error" role="alert">
+            The Catholic Bible's book list is unavailable right now. Please try again later.
+        </p>
+    }
+    else
+    {
+        <form action="@TargetPath" method="get" class="bible-browser-controls">
+            <label>Book
+                <select name="book" required>
+                    @foreach (var book in books)
+                    {
+                        <option value="@book.Id" selected="@(book.Id == selectedBook?.Id)">@book.Name</option>
+                    }
+                </select>
+            </label>
+            <label>Chapter
+                <input name="chapter" type="number" min="1" max="150" step="1"
+                       value="@selectedChapter" required />
+            </label>
+            <label>Verse <span class="muted small">(optional)</span>
+                <input name="verse" type="number" min="1" max="176" step="1"
+                       placeholder="All verses" value="@VerseQuery" />
+            </label>
+            <button type="submit" class="action">Read Scripture</button>
+        </form>
+        @if (selectedBook is not null)
+        {
+            <p class="muted small">
+                @selectedBook.Name contains chapters @selectedBook.FirstChapter–@selectedBook.LastChapter.
+                Leave Verse blank to browse every verse in the chapter and choose which one to pin.
+            </p>
+        }
+
+        @if (passage is not null)
+        {
+            <div class="bible-browser-results">
+                <div class="bible-browser-heading">
+                    <strong>@selectedBook?.Name @selectedChapter</strong>
+                    <div class="bible-browser-navigation">
+                        @if (selectedChapter > selectedBook?.FirstChapter)
+                        {
+                            <a class="action secondary compact"
+                               href="@ChapterUrl(selectedChapter - 1)">← Previous chapter</a>
+                        }
+                        @if (selectedChapter < selectedBook?.LastChapter)
+                        {
+                            <a class="action secondary compact"
+                               href="@ChapterUrl(selectedChapter + 1)">Next chapter →</a>
+                        }
+                    </div>
+                </div>
+                <ScripturePassageView Passage="@passage" Expanded="true" DiscussionId="@DiscussionId" />
+            </div>
+        }
+    }
+</section>
+
+@code {
+    [Parameter] public Guid? DiscussionId { get; set; }
+    [Parameter] public string? BookQuery { get; set; }
+    [Parameter] public int? ChapterQuery { get; set; }
+    [Parameter] public int? VerseQuery { get; set; }
+
+    private IReadOnlyList<CatholicBibleBook> books = [];
+    private CatholicBibleBook? selectedBook;
+    private CatholicPassage? passage;
+    private int selectedChapter = 1;
+    private string TargetPath => DiscussionId is Guid id ? $"/discussions/{id}" : "/discussions";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        passage = null;
+        try
+        {
+            books = await Bible.GetBooksAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException
+            or System.Text.Json.JsonException or InvalidDataException or InvalidOperationException)
+        {
+            books = [];
+            return;
+        }
+
+        selectedBook = books.FirstOrDefault(book =>
+            string.Equals(book.Id, BookQuery, StringComparison.OrdinalIgnoreCase))
+            ?? books.FirstOrDefault(book => book.Id == "LUK")
+            ?? books.FirstOrDefault();
+
+        if (selectedBook is null)
+            return;
+        selectedChapter = ChapterQuery ?? selectedBook.FirstChapter;
+
+        // Only fetch an actual chapter after the visitor selects Read Scripture.
+        if (string.IsNullOrWhiteSpace(BookQuery) || !ChapterQuery.HasValue)
+            return;
+        if (selectedChapter < selectedBook.FirstChapter || selectedChapter > selectedBook.LastChapter)
+        {
+            passage = new($"{selectedBook.Name} {selectedChapter}", [],
+                $"Choose a chapter from {selectedBook.FirstChapter} to {selectedBook.LastChapter}.");
+            return;
+        }
+
+        passage = await Bible.GetChapterAsync(selectedBook.Id, selectedChapter);
+        if (VerseQuery.HasValue && passage.IsAvailable)
+        {
+            var verse = passage.Verses.FirstOrDefault(v => v.Number == VerseQuery);
+            passage = verse is null
+                ? new($"{selectedBook.Name} {selectedChapter}:{VerseQuery}", [],
+                    "That verse is not present in this chapter. Leave Verse blank to see the whole chapter.")
+                : new($"{selectedBook.Name} {selectedChapter}:{VerseQuery}", [verse]);
+        }
+    }
+
+    private string ChapterUrl(int chapter) =>
+        $"{TargetPath}?book={Uri.EscapeDataString(selectedBook?.Id ?? "LUK")}&chapter={chapter}#bible-browser";
+}
