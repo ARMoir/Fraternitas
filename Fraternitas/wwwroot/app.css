@@ -136,6 +136,32 @@ form[action="/documents/upload"] input[type=file]{width:min(100%,460px)}
 
 .calendar-toolbar .calendar-toggle input[type=checkbox]{flex:0 0 auto}
 
+
+/* Clickable blank calendar spaces; links work without Blazor or JavaScript. */
+.calendar-slot-hint{font-size:.85rem;color:#6a796e;margin:.1rem 0 .75rem}
+.frat-calendar-day{position:relative;isolation:isolate}
+.frat-calendar-slot-overlay{position:absolute;inset:0;z-index:0;display:block;cursor:crosshair}
+.frat-calendar-slot-overlay::after{content:"+";position:absolute;right:7px;bottom:5px;font-size:1.1rem;font-weight:750;color:#82998a;opacity:.6}
+.frat-calendar-slot-overlay:hover{background:#ecf5ed}
+.frat-calendar-slot-overlay:hover::after,.frat-calendar-slot-overlay:focus-visible::after{color:#24583f;opacity:1}
+.frat-calendar-day-number,.frat-calendar-appointments{position:relative;z-index:1}
+.frat-calendar-slot-list{display:flex;flex-direction:column;gap:3px;margin-top:.75rem;padding-top:.65rem;border-top:1px solid #e6ede5}
+.frat-calendar-hour-slot{display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+  min-height:30px;padding:.32rem .48rem;border:1px dashed #dae5da;border-radius:5px;
+  background:#f7faf6;color:#456c55;font-size:.76rem;text-decoration:none}
+.frat-calendar-hour-slot:hover,.frat-calendar-hour-slot:focus-visible{background:#e7f2e6;color:#20553c;border-color:#a9cead;text-decoration:none}
+.frat-calendar-hour-slot span:last-child{font-size:1.05rem;font-weight:700}
+.frat-calendar-slots-title{margin:1.25rem 0 .65rem;font-size:.95rem}
+.frat-calendar-day-slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}
+.frat-calendar-day-slots .frat-calendar-hour-slot{font-size:.89rem;min-height:40px}
+.calendar-edit-delete{border-top:1px solid #e4e9e0;margin-top:1.35rem;padding-top:.8rem}
+.calendar-edit-delete summary{cursor:pointer;font-weight:650;color:#9a433d}
+.calendar-edit-delete form{margin-bottom:.5rem}
+@media(max-width:640px){
+  .frat-calendar-day-slots{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .frat-calendar-hour-slot{padding:.3rem .35rem}
+}
+
 /* Catholic Scripture reader: compact numbered verses with a collapsible reading. */
 .scripture-fold{margin:1.15rem 0;border:1px solid #dce7db;border-radius:10px;background:#f8faf5}
 .scripture-fold summary{padding:.9rem 1rem;cursor:pointer;color:#245a43;font-weight:700;line-height:1.45}
