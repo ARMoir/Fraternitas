@@ -190,6 +190,30 @@ form[action="/documents/upload"] input[type=file]{width:min(100%,460px)}
 .verse-reply-link{margin:1rem 0}
 @media(max-width:560px){.scripture-verse-row{gap:.35rem}.verse-pin-button{font-size:.7rem;padding:.3rem .4rem}.verse-pin-actions .action{width:100%}.verse-pin-date{max-width:none;width:100%}}
 
+
+/* 73-book Catholic Bible browser in Discussions. Entirely server-rendered. */
+.bible-browser{scroll-margin-top:1rem}
+.bible-browser .section-head{align-items:flex-start;flex-wrap:wrap}
+.bible-browser .section-head h2{margin:.25rem 0}
+.bible-browser-controls{display:grid;grid-template-columns:minmax(180px,2fr) minmax(92px,.7fr) minmax(100px,.8fr) auto;gap:.8rem;align-items:end;margin:1rem 0}
+.bible-browser-controls label{margin:0;min-width:0}
+.bible-browser-controls select,.bible-browser-controls input{width:100%;margin-top:.38rem}
+.bible-browser-controls button{min-height:45px;white-space:nowrap}
+.bible-browser-results{margin-top:1.3rem;border-top:1px solid #e1e9df;padding-top:.95rem}
+.bible-browser-heading{display:flex;align-items:center;justify-content:space-between;gap:.7rem;flex-wrap:wrap}
+.bible-browser-heading strong{color:#264d3a;font-size:1.05rem}
+.bible-browser-navigation{display:flex;gap:.5rem;flex-wrap:wrap}
+.bible-browser-navigation .action.compact{margin:0;font-size:.81rem}
+.bible-browser .scripture-fold{margin:.85rem 0 0}
+.bible-browser .scripture-verses{max-height:65vh;overflow-y:auto;overscroll-behavior:contain}
+.bible-browser .verse-pin-details summary{list-style:none}
+@media(max-width:720px){
+  .bible-browser-controls{grid-template-columns:1fr 1fr}
+  .bible-browser-controls label:first-child{grid-column:1/-1}
+  .bible-browser-controls button{grid-column:1/-1}
+  .bible-browser .scripture-verses{max-height:65vh}
+}
+
 /* Member access: everyone is an admin until intentionally marked Member only. */
 .member-access-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.8rem 0;border-top:1px solid #e8ede6}
 .member-access-identity{display:flex;flex-direction:column;gap:.2rem;min-width:0;overflow-wrap:anywhere}
