@@ -296,7 +296,7 @@ jobs:
           event_id=$(python3 - "$RUNNER_TEMP/create-event-headers" <<'PY'
           import re, sys, uuid
           headers = open(sys.argv[1], encoding="utf-8").read()
-          match = re.search(r"^location:\s*/calendar#event-([0-9a-f]{32})", headers, re.I | re.M)
+          match = re.search(r"^location:\s*/calendar(?:\?[^#\r\n]*)?#event-([0-9a-f]{32})", headers, re.I | re.M)
           if not match:
               raise SystemExit("Missing event details hash in redirect")
           print(str(uuid.UUID(hex=match.group(1))))
