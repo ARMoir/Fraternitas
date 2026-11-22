@@ -125,6 +125,52 @@ curl -sSf -b "$cookies" "$base/discussions/$topic" -o "$RUNNER_TEMP/replied.html
 grep -q 'Praying together as Catholic brothers.' "$RUNNER_TEMP/replied.html"
 echo "Native discussion and reply workflows verified"
 
+# The discussion Bible browser must work across the Catholic canon, not just Luke.
+curl -sSf -b "$cookies" \
+  "$base/discussions?book=JHN&chapter=3&verse=16" -o "$RUNNER_TEMP/bible-verse.html"
+grep -q 'Browse the Holy Bible' "$RUNNER_TEMP/bible-verse.html"
+grep -q 'name="book"' "$RUNNER_TEMP/bible-verse.html"
+grep -q 'value="TOB"' "$RUNNER_TEMP/bible-verse.html"
+grep -q 'Pin John 3:16' "$RUNNER_TEMP/bible-verse.html"
+bible_csrf=$(token_for_form "$RUNNER_TEMP/bible-verse.html" "/scripture/pin")
+curl -sS -D "$RUNNER_TEMP/bible-pin-headers" -o /dev/null -b "$cookies" \
+  --data-urlencode "__RequestVerificationToken=$bible_csrf" \
+  --data-urlencode "reference=JHN 3:16" \
+  --data-urlencode "reflection=For God so loved the world." \
+  --data-urlencode "mode=discussion" "$base/scripture/pin"
+scripture_topic=$(python3 - "$RUNNER_TEMP/bible-pin-headers" <<'PY'
+import re, sys
+headers = open(sys.argv[1], encoding="utf-8").read()
+match = re.search(r"^location:\s*/discussions/([0-9a-f-]{36})", headers, re.I | re.M)
+assert match, "Selected John verse was not posted as a new discussion"
+print(match.group(1))
+PY
+)
+curl -sSf -b "$cookies" \
+  "$base/discussions/$scripture_topic?book=TOB&chapter=1&verse=1" \
+  -o "$RUNNER_TEMP/tobit-discussion.html"
+grep -q 'Pin in this discussion' "$RUNNER_TEMP/tobit-discussion.html"
+bible_csrf=$(token_for_form "$RUNNER_TEMP/tobit-discussion.html" "/scripture/pin")
+curl -sS -D "$RUNNER_TEMP/tobit-reply-headers" -o /dev/null -b "$cookies" \
+  --data-urlencode "__RequestVerificationToken=$bible_csrf" \
+  --data-urlencode "reference=TOB 1:1" \
+  --data-urlencode "discussionId=$scripture_topic" \
+  --data-urlencode "reflection=From a different Catholic book." \
+  --data-urlencode "mode=discussion" "$base/scripture/pin"
+grep -qi "location: /discussions/$scripture_topic" "$RUNNER_TEMP/tobit-reply-headers"
+python3 - "$scripture_topic" <<'PY'
+import os, sqlite3, sys
+con = sqlite3.connect(os.path.join(os.environ["FRATERNITAS_DATA_DIR"], "fraternitas.db"))
+topic = con.execute('SELECT Body FROM Discussions WHERE lower(Id)=lower(?)', (sys.argv[1],)).fetchone()
+reply = con.execute('SELECT Body FROM Replies WHERE lower(DiscussionId)=lower(?) AND Body LIKE ?',
+                    (sys.argv[1], '%TOB 1:1%')).fetchone()
+assert topic and "JHN 3:16" in topic[0] and "Douay–Rheims" in topic[0]
+assert reply and "TOB 1:1" in reply[0] and "Douay–Rheims" in reply[0]
+print("Verse from John pinned as topic; verse from Tobit pinned as reply")
+PY
+echo "73-book Bible browser and discussion verse pins verified"
+
+
 # The Scripture pin endpoint also requires authentication and CSRF protection.
 curl -sS -D "$RUNNER_TEMP/pin-invalid-headers" -o /dev/null -b "$cookies" \
   --data-urlencode "reference=Luke 1:26" \
