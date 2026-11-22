@@ -75,7 +75,9 @@ public static class ScripturePinEndpoints
             {
                 loggers.CreateLogger("ScripturePin")
                     .LogWarning(ex, "Could not complete Catholic Scripture pin submission");
-                return Results.Redirect("/readings?pin=failed");
+                return Results.Redirect(discussionId.HasValue
+                    ? $"/discussions/{discussionId.Value}?pin=failed#bible-browser"
+                    : "/discussions?pin=failed#bible-browser");
             }
         }).RequireAuthorization();
     }
