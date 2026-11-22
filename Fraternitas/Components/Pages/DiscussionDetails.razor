@@ -17,8 +17,14 @@ else
     <section class="panel">
         <p class="pre-line">@post.Body</p>
     </section>
+    <BibleBrowser DiscussionId="@Id" BookQuery="@BibleBook"
+                  ChapterQuery="@BibleChapter" VerseQuery="@BibleVerse" />
     <section class="panel">
         <h2>Replies (@post.Replies.Count)</h2>
+        @if (PinError == "failed")
+        {
+            <p class="error" role="alert">The verse could not be pinned. Verify your access and try again.</p>
+        }
         @foreach (var reply in post.Replies.OrderBy(r => r.CreatedUtc))
         {
             <div class="reply">
@@ -27,9 +33,7 @@ else
                 <p class="pre-line">@reply.Body</p>
             </div>
         }
-        <div class="verse-reply-link">
-            <a class="action secondary" href="@($"/readings?discussionId={Id}")">📌 Pin a Bible verse in this discussion</a>
-        </div>
+
         <h3>Add a reply</h3>
         <form method="post" action="@($"/discussions/{Id}/reply")" data-enhance="false">
             <AntiforgeryToken />
@@ -52,6 +56,18 @@ else
     [Parameter]
     [SupplyParameterFromQuery(Name = "error")]
     public string? ReplyError { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "book")]
+    public string? BibleBook { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "chapter")]
+    public int? BibleChapter { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "verse")]
+    public int? BibleVerse { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "pin")]
+    public string? PinError { get; set; }
 
     private Discussion? post;
 
