@@ -254,7 +254,8 @@ jobs:
           # Calendar creation and event details must work without a Blazor circuit.
           curl --silent --show-error --fail -b "$RUNNER_TEMP/cookies.txt" \
             "http://127.0.0.1:5088/calendar" -o "$RUNNER_TEMP/calendar-native.html"
-          grep -q 'href="#create-event"' "$RUNNER_TEMP/calendar-native.html"
+          grep -q 'href="/calendar?view=' "$RUNNER_TEMP/calendar-native.html"
+          grep -q 'class="frat-calendar-slot-overlay"' "$RUNNER_TEMP/calendar-native.html"
           grep -q 'action="/calendar/events/create"' "$RUNNER_TEMP/calendar-native.html"
           create_csrf=$(python3 - "$RUNNER_TEMP/calendar-native.html" <<'PY'
           import sys
@@ -317,12 +318,34 @@ jobs:
             "http://127.0.0.1:5088/calendar?view=week&date=2026-11-23" \
             -o "$RUNNER_TEMP/calendar-week.html"
           grep -q 'frat-calendar-week' "$RUNNER_TEMP/calendar-week.html"
+          grep -q 'class="frat-calendar-slot-list"' "$RUNNER_TEMP/calendar-week.html"
           curl -sSf -b "$RUNNER_TEMP/cookies.txt" \
             "http://127.0.0.1:5088/calendar?view=day&date=2026-11-23" \
             -o "$RUNNER_TEMP/calendar-day.html"
           grep -q 'frat-calendar-single-day' "$RUNNER_TEMP/calendar-day.html"
           grep -q 'Advent calendar event smoke test' "$RUNNER_TEMP/calendar-day.html"
           grep -q 'Smoke-test event details' "$RUNNER_TEMP/calendar-after-create.html"
+          # Slot selection must open the create dialog with the clicked date/time.
+          curl -sSf -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/calendar?view=day&date=2026-11-23&slot=2026-11-23T13:00" \
+            -o "$RUNNER_TEMP/calendar-slotted.html"
+          grep -q 'id="create-event"' "$RUNNER_TEMP/calendar-slotted.html"
+          grep -q 'name="startLocal"' "$RUNNER_TEMP/calendar-slotted.html"
+          grep -q 'value="2026-11-23T13:00"' "$RUNNER_TEMP/calendar-slotted.html"
+          grep -q 'value="2026-11-23T14:00"' "$RUNNER_TEMP/calendar-slotted.html"
+          grep -q 'class="frat-calendar-day-slots"' "$RUNNER_TEMP/calendar-slotted.html"
+          echo "Clicking an hourly slot presets the creation dialog"
+
+          # Event details must offer an Edit button that opens an inline form.
+          curl -sSf -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/calendar?view=day&date=2026-11-23&edit=$event_id" \
+            -o "$RUNNER_TEMP/calendar-edit-modal.html"
+          grep -q 'id="edit-event"' "$RUNNER_TEMP/calendar-edit-modal.html"
+          grep -q 'Save changes' "$RUNNER_TEMP/calendar-edit-modal.html"
+          grep -Fq "/calendar/events/$event_id/update" "$RUNNER_TEMP/calendar-edit-modal.html"
+          grep -q 'Full details' "$RUNNER_TEMP/calendar-edit-modal.html"
+          echo "Event-details modal and inline editor rendered"
+
           echo "Calendar contains a native event details window and linked appointment"
 
           curl -sS -f -b "$RUNNER_TEMP/cookies.txt" \
