@@ -111,7 +111,8 @@ if (args.Contains("verify-scripture", StringComparer.OrdinalIgnoreCase))
     var references = new[]
     {
         "Luke 1:26–38", "Luke 1:39–56", "Luke 2:1–20",
-        "Luke 2:22–38", "Luke 2:41–52"
+        "Luke 2:22–38", "Luke 2:41–52",
+        "JHN 3:16", "TOB 1:1"
     };
     var complete = true;
     foreach (var reference in references)
@@ -123,6 +124,19 @@ if (args.Contains("verify-scripture", StringComparer.OrdinalIgnoreCase))
             complete = false;
             Console.Error.WriteLine(passage.Error);
         }
+    }
+    try
+    {
+        var books = await bible.GetBooksAsync();
+        var chapter = await bible.GetChapterAsync("JHN", 3);
+        var chapterHasVerse = chapter.IsAvailable && chapter.Verses.Any(v => v.Number == 16);
+        complete &= books.Count == 73 && books.Any(b => b.Id == "TOB") && chapterHasVerse;
+        Console.WriteLine($"Catholic Bible browser: {books.Count} books, John 3 chapter loaded, verse 16 present: {chapterHasVerse}");
+    }
+    catch (Exception ex)
+    {
+        complete = false;
+        Console.Error.WriteLine("Catholic Bible browser verification failed: " + ex.Message);
     }
     Environment.ExitCode = complete ? 0 : 1;
     return;
