@@ -135,14 +135,43 @@ public static class AccountEndpoints
             return Results.Redirect(target);
         }).AllowAnonymous();
 
-        app.MapGet("/account/join", (HttpContext ctx, IAntiforgery csrf) =>
+        app.MapGet("/account/join", async (HttpContext ctx, IAntiforgery csrf, FraternityDb db) =>
         {
+            // Join URLs contain a bearer token. Never cache or forward them as referrers.
+            ctx.Response.Headers.CacheControl = "no-store";
+            ctx.Response.Headers["Referrer-Policy"] = "no-referrer";
+
             var token = WebUtility.HtmlEncode(csrf.GetAndStoreTokens(ctx).RequestToken ?? "");
-            var code = WebUtility.HtmlEncode(ctx.Request.Query["code"].ToString());
-            var error = ctx.Request.Query.ContainsKey("error") ? "<p class='error'>This invitation may have expired or been revoked, or your account details are invalid. Use a unique email and a non-empty password.</p>" : "";
+            var rawCode = ctx.Request.Query["code"].ToString().Trim();
+            var code = WebUtility.HtmlEncode(rawCode);
+            var errorMessage = ctx.Request.Query["error"].ToString() switch
+            {
+                "details" => "Enter your name, a valid email address and a non-empty password.",
+                "invite" => "This invitation is invalid, expired or revoked. Ask an administrator for a new link.",
+                "account" => "An account could not be created with those details. If you already registered, sign in instead.",
+                "1" => "Registration could not be completed. Check your details and invitation code.",
+                _ => null
+            };
+
+            // Check the invitation when someone opens the link, not only after
+            // they have filled out and submitted the registration form.
+            if (rawCode.Length > 0 &&
+                (rawCode.Length is < 20 or > 256 ||
+                 !await db.Invitations.AsNoTracking().AnyAsync(i =>
+                     i.TokenSha256 == Hash(rawCode) && i.RedeemedUtc == null &&
+                     i.ExpiresUtc > DateTime.UtcNow)))
+            {
+                errorMessage = "This invitation link is no longer valid. Ask an administrator for a new link.";
+            }
+
+            var error = errorMessage is null ? "" :
+                $"<p class='error' role='alert'>{WebUtility.HtmlEncode(errorMessage)}</p>";
+            var missingCode = rawCode.Length == 0
+                ? "<p class='muted'>Open the complete invitation link from your group administrator, or enter the invitation code below.</p>"
+                : "";
             var form = $"""
                 <h1>Join the fraternity</h1><p>Create your private group account.</p>
-                <p class="muted">New members receive Administrator access by default. Your group can change your access to Member only later.</p>{error}
+                <p class="muted">New members receive Administrator access by default. Your group can change your access to Member only later.</p>{error}{missingCode}
                 <form method="post" action="/account/join">
                   <input type="hidden" name="__RequestVerificationToken" value="{token}">
                   <label>Invitation code<input name="code" value="{code}" required></label>
@@ -151,6 +180,7 @@ public static class AccountEndpoints
                   <label>Password<input type="password" name="password" autocomplete="new-password" required></label>
                   <button type="submit">Create account</button>
                 </form>
+                <p class="muted">Already have an account? <a href="/account/login">Sign in</a>.</p>
                 """;
             return Results.Content(Page("Join", form), "text/html");
         }).AllowAnonymous();
@@ -165,8 +195,10 @@ public static class AccountEndpoints
             var name = form["name"].ToString().Trim();
             var password = form["password"].ToString();
 
-            if (code.Length < 20 || name.Length is < 1 or > 100 || !AdminSetup.ValidEmail(email) || string.IsNullOrEmpty(password))
-                return Results.Redirect("/account/join?error=1");
+            if (code.Length is < 20 or > 256)
+                return Results.Redirect(JoinRetryUrl(code, "invite"));
+            if (name.Length is < 1 or > 100 || !AdminSetup.ValidEmail(email) || string.IsNullOrEmpty(password))
+                return Results.Redirect(JoinRetryUrl(code, "details"));
 
             var hash = Hash(code);
             // A shared invitation remains valid for any number of distinct members until expiry or admin revocation.
@@ -174,12 +206,12 @@ public static class AccountEndpoints
             await using var transaction = await db.Database.BeginTransactionAsync();
             var invite = await db.Invitations.FirstOrDefaultAsync(i =>
                 i.TokenSha256 == hash && i.RedeemedUtc == null && i.ExpiresUtc > DateTime.UtcNow);
-            if (invite is null) return Results.Redirect("/account/join?error=1");
+            if (invite is null) return Results.Redirect(JoinRetryUrl(code, "invite"));
 
             var member = new Member { UserName = email, Email = email, DisplayName = name,
                 GroupId = invite.GroupId, EmailConfirmed = true };
             var created = await users.CreateAsync(member, password);
-            if (!created.Succeeded) return Results.Redirect("/account/join?error=1");
+            if (!created.Succeeded) return Results.Redirect(JoinRetryUrl(code, "account"));
             // Everyone joining the group starts as an administrator unless an
             // existing administrator later explicitly sets their access to Member only.
             foreach (var role in new[] { "Member", "Admin" })
@@ -224,6 +256,16 @@ public static class AccountEndpoints
 
     public static string Hash(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+    private static string JoinRetryUrl(string code, string error)
+    {
+        var path = "/account/join?error=" + Uri.EscapeDataString(error);
+        // Preserve the same invitation token after a failed submission.
+        // The code was already in the original invite URL; never include passwords.
+        return code.Length is >= 20 and <= 256
+            ? path + "&code=" + Uri.EscapeDataString(code)
+            : path;
+    }
 
     private static string Page(string title, string body)
     {
