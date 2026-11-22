@@ -35,14 +35,22 @@ public static class CalendarEventEndpoints
             await using var db = await factory.CreateDbContextAsync();
             var form = await context.Request.ReadFormAsync(context.RequestAborted);
             var input = await ParseAsync(form, db);
+            var calendarUrl = CalendarReturnUrl(form);
             if (input is null)
-                return Results.Redirect("/calendar?create=invalid#create-event");
+            {
+                // Preserve the chosen day and hour when the form needs correcting.
+                var slot = DateTime.TryParseExact(form["slot"].ToString(), LocalDateFormat,
+                    CultureInfo.InvariantCulture, DateTimeStyles.None, out var selectedSlot)
+                    && selectedSlot.Year is >= 2000 and <= 2100
+                    ? $"&slot={selectedSlot:yyyy-MM-ddTHH:mm}" : "";
+                return Results.Redirect($"{calendarUrl}&create=invalid{slot}#create-event");
+            }
 
             var ev = new CalendarEvent { GroupId = 1 };
             Apply(ev, input);
             db.CalendarEvents.Add(ev);
             await db.SaveChangesAsync(context.RequestAborted);
-            return Results.Redirect($"/calendar#event-{ev.Id:N}");
+            return Results.Redirect($"{calendarUrl}#event-{ev.Id:N}");
         });
 
         endpoints.MapPost("/{id:guid}/update", async (
@@ -63,12 +71,18 @@ public static class CalendarEventEndpoints
 
             var form = await context.Request.ReadFormAsync(context.RequestAborted);
             var input = await ParseAsync(form, db);
+            var fromCalendar = form["calendarModal"].ToString() == "true";
+            var calendarUrl = CalendarReturnUrl(form);
             if (input is null)
-                return Results.Redirect($"/events/{id}/edit?error=invalid");
+                return Results.Redirect(fromCalendar
+                    ? $"{calendarUrl}&edit={id:N}&editError=invalid#edit-event"
+                    : $"/events/{id}/edit?error=invalid");
 
             Apply(ev, input);
             await db.SaveChangesAsync(context.RequestAborted);
-            return Results.Redirect($"/calendar#event-{id:N}");
+            return Results.Redirect(fromCalendar
+                ? $"{calendarUrl}#event-{id:N}"
+                : $"/calendar#event-{id:N}");
         });
 
         endpoints.MapPost("/{id:guid}/delete", async (
@@ -119,6 +133,18 @@ public static class CalendarEventEndpoints
         {
             return false;
         }
+    }
+
+    private static string CalendarReturnUrl(IFormCollection form)
+    {
+        var view = form["calendarView"].ToString();
+        if (view is not ("day" or "week" or "month"))
+            view = "month";
+        var selectedDate = DateTime.TryParseExact(form["calendarDate"].ToString(),
+            "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+            && date.Year is >= 2000 and <= 2100
+            ? date : GroupClock.Now.Date;
+        return $"/calendar?view={view}&date={selectedDate:yyyy-MM-dd}";
     }
 
     private sealed record EventInput(
