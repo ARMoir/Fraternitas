@@ -9,6 +9,11 @@
     <p>Scripture reflections, prayer intentions and conversation between meetings.</p>
 </div>
 
+@if (PinError == "failed")
+{
+    <p class="error" role="alert">The Catholic verse could not be pinned. Try again or choose another verse.</p>
+}
+
 <section class="panel">
     <div class="section-head">
         <h2>Start a discussion</h2>
@@ -48,6 +53,9 @@
     [Parameter]
     [SupplyParameterFromQuery(Name = "error")]
     public string? PostError { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "pin")]
+    public string? PinError { get; set; }
 
     [Parameter, SupplyParameterFromQuery(Name = "book")]
     public string? BibleBook { get; set; }
