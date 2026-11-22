@@ -12,7 +12,7 @@
 <section class="panel">
     <div class="section-head">
         <h2>Start a discussion</h2>
-        <a class="action secondary compact" href="/readings">📌 Pin a Bible verse</a>
+        <a class="action secondary compact" href="#bible-browser">📖 Browse &amp; pin Scripture</a>
     </div>
     <form method="post" action="/discussions/create" data-enhance="false">
         <AntiforgeryToken />
@@ -26,6 +26,8 @@
         <button class="action" type="submit">Post discussion</button>
     </form>
 </section>
+
+<BibleBrowser BookQuery="@BibleBook" ChapterQuery="@BibleChapter" VerseQuery="@BibleVerse" />
 
 <section class="panel">
     <div class="section-head"><h2>Recent conversations</h2><span class="muted">@posts.Count topics</span></div>
@@ -46,6 +48,15 @@
     [Parameter]
     [SupplyParameterFromQuery(Name = "error")]
     public string? PostError { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "book")]
+    public string? BibleBook { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "chapter")]
+    public int? BibleChapter { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "verse")]
+    public int? BibleVerse { get; set; }
 
     private List<Discussion> posts = [];
 
