@@ -327,6 +327,48 @@ jobs:
           grep -q 'frat-calendar-single-day' "$RUNNER_TEMP/calendar-day.html"
           grep -q 'Advent calendar event smoke test' "$RUNNER_TEMP/calendar-day.html"
           grep -q 'Smoke-test event details' "$RUNNER_TEMP/calendar-after-create.html"
+          curl -sSf -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/calendar?view=month&date=2026-11-23" \
+            -o "$RUNNER_TEMP/calendar-month.html"
+          python3 - "$event_hex" <<'PY'
+          import os, sys
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlparse, parse_qs
+          class CalendarParser(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.base = "/"
+                  self.appointments = []
+                  self.modal_ids = set()
+                  self.links = []
+              def handle_starttag(self, tag, attrs):
+                  a = dict(attrs)
+                  if tag == "base":
+                      self.base = a.get("href", "/")
+                  if tag == "a":
+                      href = a.get("href", "")
+                      self.links.append(href)
+                      if "frat-calendar-event" in a.get("class", "").split():
+                          self.appointments.append(href)
+                  if "calendar-native-modal" in a.get("class", "").split():
+                      self.modal_ids.add(a.get("id"))
+          for view in ("month", "week", "day"):
+              page = CalendarParser()
+              with open(os.path.join(os.environ["RUNNER_TEMP"], f"calendar-{view}.html"), encoding="utf-8") as f:
+                  page.feed(f.read())
+              expected = "event-" + sys.argv[1]
+              assert page.appointments, f"No appointments in {view}"
+              base = urljoin("http://127.0.0.1:5088/calendar", page.base)
+              for href in page.appointments:
+                  target = urlparse(urljoin(base, href))
+                  assert target.path == "/calendar", f"Appointment navigates away from calendar: {href}"
+                  assert parse_qs(target.query).get("view") == [view], href
+                  assert parse_qs(target.query).get("date") == ["2026-11-23"], href
+                  assert target.fragment in page.modal_ids, f"Missing appointment modal: {href}"
+              assert any(urlparse(href).fragment == expected for href in page.appointments), view
+              assert all(not href.startswith("#") for href in page.links if href.startswith(("#event-", "#calendar-top", "#edit-event", "#create-event"))), "Bare fragment link would resolve to home"
+          print("All month/week/day appointment links resolve to calendar modals with the correct view and date")
+          PY
           # Slot selection must open the create dialog with the clicked date/time.
           curl -sSf -b "$RUNNER_TEMP/cookies.txt" \
             "http://127.0.0.1:5088/calendar?view=day&date=2026-11-23&slot=2026-11-23T13:00" \
