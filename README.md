@@ -1,26 +1,31 @@
 # Fraternitas
 
-**Prayer · Asceticism · Fraternity**
+**Prayer · Penance · Fraternity**
+
+[![Build and tests](https://github.com/ARMoir/Fraternitas/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/ARMoir/Fraternitas/actions/workflows/build.yml)
 
 A private, mobile-friendly group site for Catholic men's fellowship, originally designed around five Advent gatherings and the Joyful Mysteries of the Rosary.
 
-Built with **.NET 10 Blazor Web App (Interactive Server)**, **Radzen Scheduler**, **ASP.NET Core Identity**, **Entity Framework Core** and **SQLite**. The calendar UI takes inspiration from the existing scheduler in ARMoir/Persivia, without importing Persivia-specific services or code.
+Designed to support prayer and fellowship without becoming another digital distraction. Built with **.NET 10**, **server-rendered Blazor/Razor components**, **ASP.NET Core Identity**, **Entity Framework Core** and **SQLite**. Ordinary HTTP forms and links work without a persistent Blazor Server circuit. The current installation runs on a Raspberry Pi 2 Model B behind a Cloudflare Tunnel, with Resend for outbound email.
 
-## Features in this starter
+## Features
 
-- Invitation-only member accounts (one reusable group link, seven-day expiry and admin revocation)
-- Every new and existing member has **Administrator** access by default; the Admin page can explicitly change a user to **Member only**
-- Calendar with day/week/month views, add/edit/delete and drag-to-move for admins
+- Reusable group invitations and public account requests requiring administrator approval; private registration links expire in seven days
+- Shared invitations retain default Administrator access; public requests default to Member only, with explicit role selection at approval
+- Automatic password reset emails and administrator-generated recovery links, with manual fallback
+- Weekly home page calendar summary and day/week/month calendar with in-page event details and administrator edit/create/delete modals
+- Persistent per-member daily prayer and examination of conscience visibility; five appointments per month cell, with a link to view more
 - Eastern time meeting schedule, categories and per-event .ics downloads
 - Event details with scriptures, reading linkage, description and meeting link
 - Five seeded Joyful Mysteries, with the three Lectio Divina prompts
+- Complete 73-book Douay–Rheims Bible browser in discussions, with book/chapter/optional verse selection
 - Group discussion topics and replies
 - Per-verse Catholic Scripture pins: discussion topics, replies, or all-day calendar events (calendar pins restricted to admins)
 - Private file uploads/downloads (.pdf, .docx, .txt, .png, .jpg/.jpeg, max 10 MB)
 - Administrator page for reusable seven-day group invites, revocation and group counts
 - Responsive layout usable on desktop and mobile
 
-**Not yet implemented:** outbound email/SMS/push reminders, recurring event rules, calendar subscription feed, RSVP tracking, moderation/deletion interfaces for uploaded files and discussions, multi-group membership, and production database migrations. These are follow-up features, not implied by the starter.
+**Not yet implemented:** scheduled event reminders (email/SMS/push), recurring event rules, calendar subscription feeds, RSVP tracking, multi-group membership, and a full EF migrations framework. Transactional registration and recovery emails are implemented.
 
 ## Run locally
 
@@ -36,20 +41,53 @@ Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 **No environment variables, preset credentials or database deletion are required on first launch.**
 The first-run web wizard works only in **Development on localhost** and is disabled once any account exists. Production setup uses the local terminal command below.
 
-### Outbound email: Resend
+## Hosting on a Raspberry Pi
 
-Fraternitas has an administrator-only **Send test email** form under **Admin**, prefilled
-with `alex@moir.pw`. The Pi sends the request directly to Resend over HTTPS.
+The application is intended to run as a systemd service with persistent SQLite data outside the deployed application directory. Keep the existing database, documents, and private configuration when updating. GitHub Actions builds and tests the repository; it does not deploy to the Pi automatically.
 
-For production, set these server environment variables (for example in a protected
-systemd `EnvironmentFile`, **never in GitHub, appsettings.json, or source code**):
+Use your existing Cloudflare Tunnel to publish the app's local HTTP listener over HTTPS. Multiple hostnames can point to the same listener. Set `FRATERNITAS_PUBLIC_URL` to the preferred public HTTPS origin so that newly generated registration and recovery links use it. Existing links remain valid while their original hostname is still routed to the same application. Authentication cookies are hostname-specific.
 
-```dotenv
-RESEND_API_KEY=<your new Resend API key>
-FRATERNITAS_EMAIL_FROM="Fraternitas <notifications@moir.pw>"
+Example one-time systemd configuration (adjust the service name if necessary):
+
+```bash
+sudo install -d -m 700 /etc/fraternitas
+sudo nano /etc/fraternitas/resend.env
+sudo chmod 600 /etc/fraternitas/resend.env
+sudo systemctl edit fraternitas
 ```
 
-Verify the `moir.pw` sending domain in Resend before using a sender on that domain.
+In the systemd override, insert these lines above the comment that says edits below it are discarded:
+
+```ini
+[Service]
+EnvironmentFile=/etc/fraternitas/resend.env
+Environment="FRATERNITAS_PUBLIC_URL=https://faith.example.org"
+```
+
+Replace the example origin with your own verified public hostname. The private environment file is described below. After saving both files:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart fraternitas
+sudo systemctl status fraternitas --no-pager
+sudo systemctl show fraternitas -p EnvironmentFiles
+```
+
+The production deployment should use a stable private data directory (`FRATERNITAS_DATA_DIR`). Back up the SQLite database consistently (stop the service or use SQLite's backup mechanism), along with documents and configuration, to storage off the Pi. Never publish the private environment file or API key.
+
+### Outbound email: Resend
+
+Fraternitas has an administrator-only **Send test email** form under **Admin**. Set the recipient to your own email address. The Pi sends the request directly to Resend over HTTPS.
+
+For production, set these server environment variables (for example in a protected
+systemd `EnvironmentFile`, `/etc/fraternitas/resend.env`; **never commit the key to GitHub, appsettings.json, or source code**):
+
+```dotenv
+RESEND_API_KEY=YOUR_RESEND_API_KEY
+FRATERNITAS_EMAIL_FROM="Fraternitas <notifications@mail.example.org>"
+```
+
+Verify your sending domain or dedicated subdomain in [Resend](https://resend.com/domains) using the DNS records it supplies. The sender must match that verified domain. Outbound sending does not require an inbound mailbox; leave existing mail-routing records intact.
 For initial testing only, you can set
 `FRATERNITAS_EMAIL_FROM="Fraternitas <onboarding@resend.dev>"`; Resend limits
 its shared test sender to the email address associated with your Resend account.
@@ -59,8 +97,9 @@ After configuring environment variables and restarting Fraternitas, open
 the message and the Resend message ID. Check the inbox, spam folder, and Resend
 dashboard for actual delivery. No mail is sent merely by visiting a page.
 
-The sender uses the existing SQLite database without schema changes. Existing users,
-calendar events, documents, and discussions remain intact.
+If Resend returns HTTP 403, inspect [Resend Logs](https://resend.com/logs). The default `resend.dev` sender is restricted to the Resend account owner's address. Change `FRATERNITAS_EMAIL_FROM` to your verified sending domain and restart the service; no rebuild is required. A real test email was received successfully on the Pi deployment on November 24, 2026. CI uses a mock provider instead of sending real mail.
+
+The email service does not modify the database schema. Account requests use an additive table upgrade described below.
 
 ### Request an account
 
@@ -128,17 +167,17 @@ To invite members, sign in as administrator, open **Admin**, create **one group 
 
 ## Privacy and security
 
-- The GitHub repository is public; **group content is not in the repository**. Store no real member contact information, prayers, or PDFs in code or seed files.
+- The GitHub repository is public; **private group content belongs in the protected data directory, not the repository**. Do not commit private member records, credentials, reflections, or uploads.
 - Calendar, readings, discussions and uploads are protected by authenticated routes. Downloads are protected endpoints, not public static paths.
-- All users have **Admin by default**: every invited user can manage the calendar, create/revoke invitation links, pin Scripture onto the calendar, and change member roles. **Shared invitation links therefore grant substantial access; share them carefully.** Members explicitly set to Member only cannot perform administrative actions.
+- Shared group invitations grant **Admin by default**; public account requests default to **Member only** unless the approving administrator explicitly chooses Administrator. Administrators manage the calendar, invitations, Scripture calendar pins, account requests and member roles. **Share reusable invitations carefully.**
 - In **Admin → Member access**, select **Set member only** to downgrade an account, or **Make administrator** to restore it. The app prevents downgrading the last administrator. Role changes take effect when the user signs in again (and sensitive edit actions check the current database role).
 - Existing accounts that previously had only the Member role automatically gain Admin on startup **unless an explicit Member-only exception exists**. Exceptions are stored as ASP.NET Identity claims in the current SQLite database and survive restarts; no schema migration, account reset or data deletion is needed.
 - Passwords must be non-empty; length/complexity restrictions were intentionally removed for ease of use. Encourage strong unique passwords because group discussions and uploaded documents remain private. Passwords are hashed using ASP.NET Core Identity. Authentication requests, first-run setup and sign-out use antiforgery validation.
 - The admin web setup is available only from loopback in Development before the first user exists; existing admin recovery requires local terminal access.
-- Invite URLs are secret, reusable by multiple distinct members, expire after seven days, and may be revoked by an administrator. Email addresses are not independently verified in this MVP.
+- Shared invite URLs are secret, reusable by multiple distinct members, expire after seven days and may be revoked. Approved public requests instead use a single-use link tied to the approved address. Older/shared-invite accounts do not have independent email verification.
 - Uploads are stored outside `wwwroot`, with randomized storage names, extension allowlisting and a 10 MB limit. This is not an antivirus or content-scanning service.
 - **Use HTTPS and secure cookie settings in production.** Do not expose a local HTTP development instance on the public internet.
-- For real deployment, add monitored backups, email-based recovery, member management, rate limiting, security headers, production migrations and a file scanning policy. Review data retention/privacy expectations with the group.
+- Operational priorities: monitored off-device backups, stronger abuse protection for public routes, secure production configuration, a full migration strategy and a file-scanning policy. Review data retention/privacy expectations with the group.
 
 ## Advent 2026 calendar (automatic, one-time seed)
 
@@ -147,7 +186,7 @@ On the first startup after this update, Fraternitas fills the calendar in **both
 - **Monday gatherings, 8:00–9:00 PM Eastern**: Nov 23 (Annunciation, Luke 1:26–38), Nov 30 (Visitation, Luke 1:39–56), Dec 7 (Nativity, Luke 2:1–20), Dec 14 (Presentation, Luke 2:22–38), Dec 21 (Finding in the Temple, Luke 2:41–52).
 - **Wednesday fast until 4:00 PM Eastern + meatless Wednesdays**: Nov 25, Dec 2, 9, 16 and 23.
 - **Friday fast until 4:00 PM Eastern**: Nov 27, Dec 4, 11 and 18. Dec 25 (Christmas Day) is not included.
-- **Daily personal practices**: all-day reminders Nov 23–Dec 24 for 20 minutes of silent prayer, the daily Ignatian Examen, and the agreed phone/TV asceticism. Their timing is chosen by each member; the calendar has a toggle to show/hide these reminders, hidden by default to keep the month view readable.
+- **Daily personal practices**: all-day reminders Nov 23–Dec 24 for 20 minutes of silent prayer, the daily Ignatian Examen, and the agreed sacrifice of unnecessary phone/TV time. Their timing is chosen by each member; the calendar has a toggle to show/hide these reminders, hidden by default to keep the month view readable.
 
 Fasting guidance emphasizes **fasting until 4:00 PM Eastern**; the group's alternative is **two small meals and one normal meal**. Each meeting includes three Lectio Divina readings and reflection prompts, an opportunity to discuss the week and one decade of the Rosary. The recurring Zoom URL is left blank pending Ryan's link. The Christmas-season get-together has no confirmed date, so it is mentioned as a discussion item rather than placed on the calendar.
 
@@ -187,15 +226,37 @@ From **Readings** (or a Monday meeting's detail page), expand a Douay–Rheims p
 
 Calendar and discussion pages both include shortcuts to the readings for pinning. Pins are saved into existing `CalendarEvent`, `Discussion` and `Reply` records; **no new SQLite migration is needed**. The Bible text is always independently fetched from the verified 73-book Douay–Rheims endpoint before saving. If the API is unavailable, pinning fails without creating an unverified quote. Personal notes are displayed as escaped text, not executable HTML.
 
-Version 1 pins individual verses from the five Joyful Mystery **Luke** passages already shown in Fraternitas. This is not yet a universal Bible browser or Bible-wide text search; that can be added later.
+The **Discussions** page and individual discussion threads include the full Catholic Bible browser. Choose any of the 73 books and a chapter, optionally enter a verse number, and use the compact right-aligned **📌 Pin** button. The browser supports navigating chapters; full-text Bible search is not implemented.
 
 An integration test (`verify-scripture-pins`) uses an isolated SQLite database to verify that a Scripture topic, an existing-thread reply, and an all-day event persist correctly, and that non-admin users cannot pin to the calendar.
+## Calendar and home page
+
+Select a calendar appointment in day, week or month view to open its detail modal. Administrators can select **Edit event**, save changes or delete the event without leaving the calendar route. The selected calendar view and date are retained. The home page queries the same SQLite records, so changes appear the next time the home page loads, if the event falls within its displayed week. Daily practice reminders are hidden by default and the calendar visibility preference persists per user.
+
+## Build and test
+
+```bash
+dotnet restore Fraternitas/Fraternitas.csproj
+dotnet build Fraternitas/Fraternitas.csproj -c Release --no-restore
+```
+
+[GitHub Actions](https://github.com/ARMoir/Fraternitas/actions/workflows/build.yml) runs on pushes to `main` and pull requests. It verifies the Catholic canon and Bible browser using the live HelloAO API, Scripture pin persistence, role defaults and exceptions, per-user preferences, mocked Resend reset emails, and native HTTP workflows for sign-in, private routes, calendar modals and home page synchronization, document uploads, password recovery fallback and account request approval/registration/revocation. A separate smoke test verifies first-run administrator setup. Tests use isolated SQLite data and do not require production credentials or send real email. The live Scripture check requires network access to HelloAO.
+
+For local verification, use a disposable data directory, not your production database:
+
+```bash
+export FRATERNITAS_DATA_DIR="$(mktemp -d)"
+for check in verify-scripture verify-scripture-pins verify-member-access verify-user-preferences verify-password-reset-email; do
+  dotnet run --no-launch-profile --project Fraternitas/Fraternitas.csproj -- "$check" || break
+done
+```
+
 ## Tech & roadmap
 
 - `Fraternitas/Data`: EF/Identity models and initial seed
 - `Fraternitas/Services`: account endpoints, invitation handling, local file storage
 - `Fraternitas/Components/Pages`: calendar, readings, events, documents, discussions and administration
 - `Fraternitas/wwwroot/app.css`: responsive visual theme
-- `.github/workflows/build.yml`: restore/build validation on push and pull request
+- `.github/workflows/build.yml` and `.github/scripts/native-actions-test.sh`: build and regression validation on push and pull request
 
-Next stages: calendar recurrence/reminders, group-level configuration, password recovery, robust migrations and audited production hosting. Keep devotional commitment tracking private and optional.
+Potential next stages: dependable backups, calendar recurrence and optional reminders, group-level configuration, stronger public-route abuse protection, and robust migrations. Keep devotional commitments private and optional.
