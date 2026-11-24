@@ -238,3 +238,68 @@ curl -sSf -b "$cookies" \
 grep -q 'Email delivery is not configured' "$RUNNER_TEMP/reset-fallback.html"
 grep -q 'id="reset-url"' "$RUNNER_TEMP/reset-fallback.html"
 echo "Forgot password requests and administrator link fallback verified with no Resend key"
+
+
+# Public requests must not create accounts or grant access until approved registration.
+# The CI database and example.invalid recipients are disposable; no Resend key is set.
+curl -sSf -c "$RUNNER_TEMP/request.cookies" "$base/account/request" -o "$RUNNER_TEMP/account-request.html"
+request_csrf=$(token_for_form "$RUNNER_TEMP/account-request.html" "/account/request")
+for attempt in 1 2; do
+  curl -sSf -b "$RUNNER_TEMP/request.cookies" \
+    --data-urlencode "__RequestVerificationToken=$request_csrf" \
+    --data-urlencode "name=CI Applicant" \
+    --data-urlencode "email=ci-applicant@example.invalid" \
+    --data-urlencode "note=Integration test only" \
+    "$base/account/request" -o "$RUNNER_TEMP/request-result.html"
+  grep -q 'Request received' "$RUNNER_TEMP/request-result.html"
+done
+request_id=$(python3 - <<'PY'
+import os, sqlite3
+db = sqlite3.connect(os.path.join(os.environ["FRATERNITAS_DATA_DIR"], "fraternitas.db"))
+rows = db.execute("SELECT Id FROM AccountRequests WHERE Email=?", ("ci-applicant@example.invalid",)).fetchall()
+assert len(rows) == 1, "Duplicate account requests not deduplicated"
+assert not db.execute("SELECT Id FROM AspNetUsers WHERE Email=?", ("ci-applicant@example.invalid",)).fetchone(), "Unapproved applicant has an account"
+print(rows[0][0])
+PY
+)
+curl -sSf -b "$cookies" "$base/admin" -o "$RUNNER_TEMP/request-admin.html"
+grep -q 'CI Applicant' "$RUNNER_TEMP/request-admin.html"
+grep -q 'Awaiting approval' "$RUNNER_TEMP/request-admin.html"
+approve_csrf=$(token_for_form "$RUNNER_TEMP/request-admin.html" "/admin/account-requests/approve")
+curl -sSf -b "$cookies" \
+  --data-urlencode "__RequestVerificationToken=$approve_csrf" \
+  --data-urlencode "requestId=$request_id" \
+  --data-urlencode "grantAdmin=false" \
+  "$base/admin/account-requests/approve" -o "$RUNNER_TEMP/request-approved.html"
+grep -q 'Account request approved' "$RUNNER_TEMP/request-approved.html"
+grep -q 'You can still share the private link directly' "$RUNNER_TEMP/request-approved.html"
+registration_path=$(python3 - "$RUNNER_TEMP/request-approved.html" <<'PY'
+import sys
+from html.parser import HTMLParser
+from urllib.parse import urlsplit
+class RegistrationLink(HTMLParser):
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "input" and a.get("id") == "registration-url":
+            parsed = urlsplit(a["value"])
+            assert parsed.path == "/account/complete-registration"
+            print(parsed.path + "?" + parsed.query)
+parser = RegistrationLink()
+parser.feed(open(sys.argv[1], encoding="utf-8").read())
+PY
+)
+test -n "$registration_path"
+curl -sSf -b "$RUNNER_TEMP/request.cookies" -c "$RUNNER_TEMP/request.cookies" \
+  "$base$registration_path" -o "$RUNNER_TEMP/registration-form.html"
+grep -q 'Complete your registration' "$RUNNER_TEMP/registration-form.html"
+grep -q 'ci-applicant@example.invalid' "$RUNNER_TEMP/registration-form.html"
+# Delete an approved request and verify the previously issued link is revoked.
+curl -sSf -b "$cookies" "$base/admin" -o "$RUNNER_TEMP/request-delete-admin.html"
+delete_csrf=$(token_for_form "$RUNNER_TEMP/request-delete-admin.html" "/admin/account-requests/delete")
+curl -sS -D "$RUNNER_TEMP/request-delete-headers" -o /dev/null -b "$cookies" \
+  --data-urlencode "__RequestVerificationToken=$delete_csrf" \
+  --data-urlencode "requestId=$request_id" "$base/admin/account-requests/delete"
+grep -qi 'location: /admin?status=request-deleted' "$RUNNER_TEMP/request-delete-headers"
+curl -sSf -b "$RUNNER_TEMP/request.cookies" "$base$registration_path" -o "$RUNNER_TEMP/revoked-registration.html"
+grep -q 'Registration link unavailable' "$RUNNER_TEMP/revoked-registration.html"
+echo "Account request deduplication, approval, email fallback, and revocation verified"
