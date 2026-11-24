@@ -14,7 +14,9 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - name: Validate native smoke-test shell syntax
-        run: bash -n .github/scripts/native-actions-test.sh
+        run: |
+          bash -n .github/scripts/native-actions-test.sh
+          bash -n .github/scripts/calendar-permissions-test.sh
       - name: Restore
         run: dotnet restore Fraternitas/Fraternitas.csproj
       - name: Build
@@ -523,8 +525,8 @@ jobs:
             curl -sS --fail -b "$RUNNER_TEMP/$member.cookies" \
               "http://127.0.0.1:5089/readings" -o "$RUNNER_TEMP/$member.readings.html"
             grep -q 'The Five Joyful Mysteries' "$RUNNER_TEMP/$member.readings.html"
-            curl -sS --fail -b "$RUNNER_TEMP/$member.cookies"               "http://127.0.0.1:5089/admin" -o "$RUNNER_TEMP/$member.admin.html"
-            grep -q 'Member access' "$RUNNER_TEMP/$member.admin.html"
+            curl -sS -b "$RUNNER_TEMP/$member.cookies" -D "$RUNNER_TEMP/$member.admin.headers" -o /dev/null "http://127.0.0.1:5089/admin"
+            grep -Ei "^HTTP/[^ ]+ (302|403)" "$RUNNER_TEMP/$member.admin.headers"
           done
           python3 - <<'PY'
           import os, sqlite3
@@ -533,8 +535,11 @@ jobs:
           active = db.execute('SELECT COUNT(*) FROM Invitations WHERE RedeemedUtc IS NULL').fetchone()[0]
           assert users == 3, f'Expected admin plus 2 members, found {users}'
           assert active == 1, f'Expected shared invite to remain active, found {active}'
+          admins = db.execute("SELECT u.Email FROM AspNetUsers u JOIN AspNetUserRoles ur ON u.Id=ur.UserId JOIN AspNetRoles r ON r.Id=ur.RoleId WHERE r.Name='Admin'").fetchall()
+          assert admins == [('wizard@example.invalid',)], admins
           PY
-          echo 'Multi-use invitation with two members and short passwords passed'
+          echo 'Multi-use invitation creates two ordinary members, not administrators'
+          bash .github/scripts/calendar-permissions-test.sh
 
           # If a registration fails (for example, an existing email), the
           # original code must survive the retry instead of going blank.

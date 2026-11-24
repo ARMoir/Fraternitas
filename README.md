@@ -11,16 +11,16 @@ Designed to support prayer and fellowship without becoming another digital distr
 ## Features
 
 - Reusable group invitations and public account requests requiring administrator approval; private registration links expire in seven days
-- Shared invitations retain default Administrator access; public requests default to Member only, with explicit role selection at approval
+- All new registrations start as Member only; administrators can promote users after registration
 - Automatic password reset emails and administrator-generated recovery links, with manual fallback
-- Weekly home page calendar summary and day/week/month calendar with in-page event details and administrator edit/create/delete modals
+- Weekly home page calendar summary and day/week/month calendar with in-page event details and creation for all members and edit/delete modals for event owners and administrators
 - Persistent per-member daily prayer and examination of conscience visibility; five appointments per month cell, with a link to view more
 - Eastern time meeting schedule, categories and per-event .ics downloads
 - Event details with scriptures, reading linkage, description and meeting link
 - Five seeded Joyful Mysteries, with the three Lectio Divina prompts
 - Complete 73-book Douay–Rheims Bible browser in discussions, with book/chapter/optional verse selection
 - Group discussion topics and replies
-- Per-verse Catholic Scripture pins: discussion topics, replies, or all-day calendar events (calendar pins restricted to admins)
+- Per-verse Catholic Scripture pins: discussion topics, replies, or all-day calendar events (all members can pin on the calendar)
 - Private file uploads/downloads (.pdf, .docx, .txt, .png, .jpg/.jpeg, max 10 MB)
 - Administrator page for reusable seven-day group invites, revocation and group counts
 - Responsive layout usable on desktop and mobile
@@ -107,16 +107,16 @@ On the sign-in page, choose **Request an account** and enter a name, email addre
 and optional note. Requests are stored separately from Identity accounts, so an
 applicant cannot sign in or access private content before completing an approved registration.
 
-Under **Admin → Account requests**, administrators can choose **Member only** (the
-default for public requests) or **Administrator**, then **Approve & email registration link**.
+Under **Admin → Account requests**, select **Approve & email registration link**.
+All new accounts register as Member only; administrators may promote users after registration.
 The applicant receives a single-use, seven-day link through Resend, using the configured
 public URL. The applicant chooses their own password when completing registration;
 the approved email address cannot be changed on that form. A copyable link is available
 if Resend is unavailable. Resending replaces the old link, and **Delete request**
 removes the application and revokes its link without deleting any existing member.
 
-Existing shared group invitations retain their previous behavior and default Administrator
-access. The new AccountRequests table is added automatically on startup using an
+Shared group invitations also create Member-only accounts, including previously issued links.
+Existing administrators retain their access. The new AccountRequests table is added automatically on startup using an
 idempotent SQLite upgrade; existing members, calendar events, discussions, and documents
 are preserved. Back up the persistent data directory before deploying as usual.
 
@@ -163,15 +163,15 @@ The previous `FRATERNITAS_ADMIN_EMAIL` and `FRATERNITAS_ADMIN_PASSWORD` bootstra
 
 The app creates `Fraternitas/App_Data/fraternitas.db` and `Fraternitas/App_Data/documents/` by default. In local Debug/Release builds these paths are resolved relative to the project directory, regardless of terminal working directory. Set `FRATERNITAS_DATA_DIR` to an absolute path on **persistent private storage** when hosting. Back up the database and document directory together.
 
-To invite members, sign in as administrator, open **Admin**, create **one group invitation link**, then send that same URL to everyone in the group chat. Each person registers an individual account with it, receiving **Administrator privileges by default**. The link remains usable for additional registrations until it expires after seven days or you revoke it from **Admin**. Only the token hash is stored; copy the full URL before leaving the page. Invitations created in older versions and already redeemed stay unusable; generate a fresh shared link.
+To invite members, sign in as administrator, open **Admin**, create **one group invitation link**, then send that same URL to everyone in the group chat. Each person registers an individual account with it, receiving **Member access by default**. The link remains usable for additional registrations until it expires after seven days or you revoke it from **Admin**. Only the token hash is stored; copy the full URL before leaving the page. Invitations created in older versions and already redeemed stay unusable; generate a fresh shared link.
 
 ## Privacy and security
 
 - The GitHub repository is public; **private group content belongs in the protected data directory, not the repository**. Do not commit private member records, credentials, reflections, or uploads.
 - Calendar, readings, discussions and uploads are protected by authenticated routes. Downloads are protected endpoints, not public static paths.
-- Shared group invitations grant **Admin by default**; public account requests default to **Member only** unless the approving administrator explicitly chooses Administrator. Administrators manage the calendar, invitations, Scripture calendar pins, account requests and member roles. **Share reusable invitations carefully.**
+- Both invitation and approved request registrations create ordinary **Members**. Administrators can promote members after registration. All members can view, create and pin calendar events, edit or delete their own events, and participate in group activities. Administrators may manage any event, invitations, account requests and roles. **Share reusable invitations carefully.**
 - In **Admin → Member access**, select **Set member only** to downgrade an account, or **Make administrator** to restore it. The app prevents downgrading the last administrator. Role changes take effect when the user signs in again (and sensitive edit actions check the current database role).
-- Existing accounts that previously had only the Member role automatically gain Admin on startup **unless an explicit Member-only exception exists**. Exceptions are stored as ASP.NET Identity claims in the current SQLite database and survive restarts; no schema migration, account reset or data deletion is needed.
+- Startup no longer promotes members automatically. Existing administrators retain their access, and explicit Member-only exceptions are respected. A nullable `CreatedByUserId` calendar column is added automatically to existing SQLite databases; existing and seeded events without an owner remain administrator-managed. Back up the data directory before deploying.
 - Passwords must be non-empty; length/complexity restrictions were intentionally removed for ease of use. Encourage strong unique passwords because group discussions and uploaded documents remain private. Passwords are hashed using ASP.NET Core Identity. Authentication requests, first-run setup and sign-out use antiforgery validation.
 - The admin web setup is available only from loopback in Development before the first user exists; existing admin recovery requires local terminal access.
 - Shared invite URLs are secret, reusable by multiple distinct members, expire after seven days and may be revoked. Approved public requests instead use a single-use link tied to the approved address. Older/shared-invite accounts do not have independent email verification.
@@ -221,17 +221,17 @@ This is **not a Catholic daily Mass lectionary**; it retrieves the five specific
 From **Readings** (or a Monday meeting's detail page), expand a Douay–Rheims passage and select **📌 Pin** beside any verse. Add an optional reflection (up to 1,200 characters), then:
 
 - **Share in discussions**: any signed-in group member can create a new Scripture discussion topic, containing the canonical Bible reference and verified verse text.
-- **Pin on calendar**: administrators can choose a date (Eastern) and create an all-day **Scripture** calendar event that includes the verse and reflection.
+- **Pin on calendar**: any signed-in member can choose a date (Eastern) and create an all-day **Scripture** calendar event that includes the verse and reflection.
 - **Pin in this discussion**: from an existing discussion, select **Pin a Bible verse in this discussion**. This opens the readings and adds the chosen verse as a reply to that thread.
 
 Calendar and discussion pages both include shortcuts to the readings for pinning. Pins are saved into existing `CalendarEvent`, `Discussion` and `Reply` records; **no new SQLite migration is needed**. The Bible text is always independently fetched from the verified 73-book Douay–Rheims endpoint before saving. If the API is unavailable, pinning fails without creating an unverified quote. Personal notes are displayed as escaped text, not executable HTML.
 
 The **Discussions** page and individual discussion threads include the full Catholic Bible browser. Choose any of the 73 books and a chapter, optionally enter a verse number, and use the compact right-aligned **📌 Pin** button. The browser supports navigating chapters; full-text Bible search is not implemented.
 
-An integration test (`verify-scripture-pins`) uses an isolated SQLite database to verify that a Scripture topic, an existing-thread reply, and an all-day event persist correctly, and that non-admin users cannot pin to the calendar.
+An integration test (`verify-scripture-pins`) uses an isolated SQLite database to verify that a Scripture topic, an existing-thread reply, and an all-day event persist correctly, including non-admin calendar pin creation, recorded ownership and anonymous rejection.
 ## Calendar and home page
 
-Select a calendar appointment in day, week or month view to open its detail modal. Administrators can select **Edit event**, save changes or delete the event without leaving the calendar route. The selected calendar view and date are retained. The home page queries the same SQLite records, so changes appear the next time the home page loads, if the event falls within its displayed week. Daily practice reminders are hidden by default and the calendar visibility preference persists per user.
+Select a calendar appointment in day, week or month view to open its detail modal. All members can add events. Event creators and administrators can select **Edit event**, save changes or delete the event without leaving the calendar route. Events created before ownership tracking and seeded events can only be edited or deleted by administrators. The selected calendar view and date are retained. The home page queries the same SQLite records, so changes appear the next time the home page loads, if the event falls within its displayed week. Daily practice reminders are hidden by default and the calendar visibility preference persists per user.
 
 ## Build and test
 
@@ -240,7 +240,7 @@ dotnet restore Fraternitas/Fraternitas.csproj
 dotnet build Fraternitas/Fraternitas.csproj -c Release --no-restore
 ```
 
-[GitHub Actions](https://github.com/ARMoir/Fraternitas/actions/workflows/build.yml) runs on pushes to `main` and pull requests. It verifies the Catholic canon and Bible browser using the live HelloAO API, Scripture pin persistence, role defaults and exceptions, per-user preferences, mocked Resend reset emails, and native HTTP workflows for sign-in, private routes, calendar modals and home page synchronization, document uploads, password recovery fallback and account request approval/registration/revocation. A separate smoke test verifies first-run administrator setup. Tests use isolated SQLite data and do not require production credentials or send real email. The live Scripture check requires network access to HelloAO.
+[GitHub Actions](https://github.com/ARMoir/Fraternitas/actions/workflows/build.yml) runs on pushes to `main` and pull requests. It verifies the Catholic canon and Bible browser using the live HelloAO API, Scripture pin persistence, role defaults and exceptions, per-user preferences, mocked Resend reset emails, and native HTTP workflows for sign-in, private routes, calendar modals and home page synchronization, document uploads, password recovery fallback and account request approval/registration/revocation. A separate smoke test verifies first-run administrator setup, ordinary-member invitation registrations, and calendar creation, owner/admin editing and deletion, cross-member denial and protection of legacy events. Tests use isolated SQLite data and do not require production credentials or send real email. The live Scripture check requires network access to HelloAO.
 
 For local verification, use a disposable data directory, not your production database:
 
