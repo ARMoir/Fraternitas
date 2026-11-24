@@ -119,7 +119,7 @@ public static class AccountEndpoints
                   <button type="submit">Sign in</button>
                 </form>
                 <p><a href="/account/forgot-password">Forgot your password?</a></p>
-                <p class="muted">New here? Ask a group administrator for an invitation link.</p>
+                <p class="muted">New here? <a href="/account/request">Request an account</a> or use your invitation link.</p>
                 """;
             return Results.Content(Page("Sign in", form), "text/html");
         }).AllowAnonymous();
