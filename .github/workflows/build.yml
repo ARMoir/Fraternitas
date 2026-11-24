@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Validate native smoke-test shell syntax
+        run: bash -n .github/scripts/native-actions-test.sh
       - name: Restore
         run: dotnet restore Fraternitas/Fraternitas.csproj
       - name: Build
