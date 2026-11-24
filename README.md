@@ -36,6 +36,34 @@ Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 **No environment variables, preset credentials or database deletion are required on first launch.**
 The first-run web wizard works only in **Development on localhost** and is disabled once any account exists. Production setup uses the local terminal command below.
 
+### Outbound email: Resend
+
+Fraternitas has an administrator-only **Send test email** form under **Admin**, prefilled
+with `alex@moir.pw`. The Pi sends the request directly to Resend over HTTPS.
+
+For production, set these server environment variables (for example in a protected
+systemd `EnvironmentFile`, **never in GitHub, appsettings.json, or source code**):
+
+```dotenv
+RESEND_API_KEY=<your new Resend API key>
+FRATERNITAS_EMAIL_FROM="Fraternitas <notifications@moir.pw>"
+```
+
+Verify the `moir.pw` sending domain in Resend before using a sender on that domain.
+For initial testing only, you can set
+`FRATERNITAS_EMAIL_FROM="Fraternitas <onboarding@resend.dev>"`; Resend limits
+its shared test sender to the email address associated with your Resend account.
+
+After configuring environment variables and restarting Fraternitas, open
+**Admin → Send test email**. The result page shows whether **Resend accepted**
+the message and the Resend message ID. Check the inbox, spam folder, and Resend
+dashboard for actual delivery. No mail is sent merely by visiting a page.
+
+The email sender does not modify SQLite or account records; your existing users,
+calendar, documents, and discussions are unchanged. The current forgotten-password
+workflow still uses administrator-provided links; outbound email is first being
+validated with a manual test before enabling automatic recovery and invitations.
+
 ### Forgot password (no mail server required)
 
 The sign-in screen has **Forgot your password?**. Members can enter their registered email address to request help. The page always gives the same confirmation (it does not disclose whether the account exists); the request appears as **Reset requested** beside their name under **Admin → Member access**.
