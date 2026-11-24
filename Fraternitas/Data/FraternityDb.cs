@@ -12,6 +12,7 @@ public sealed class FraternityDb(DbContextOptions<FraternityDb> options) : Ident
     public DbSet<Reply> Replies => Set<Reply>();
     public DbSet<SharedDocument> SharedDocuments => Set<SharedDocument>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
+    public DbSet<AccountRequest> AccountRequests => Set<AccountRequest>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -19,6 +20,8 @@ public sealed class FraternityDb(DbContextOptions<FraternityDb> options) : Ident
         builder.Entity<CalendarEvent>().HasIndex(e => new { e.GroupId, e.StartLocal });
         builder.Entity<Discussion>().HasIndex(e => new { e.GroupId, e.CreatedUtc });
         builder.Entity<Invitation>().HasIndex(e => e.TokenSha256).IsUnique();
+        builder.Entity<AccountRequest>().HasIndex(e => e.NormalizedEmail).IsUnique();
+        builder.Entity<AccountRequest>().HasIndex(e => e.TokenSha256).IsUnique();
         builder.Entity<Reply>().HasOne(r => r.Discussion).WithMany(d => d.Replies)
             .HasForeignKey(r => r.DiscussionId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<Discussion>().HasOne(d => d.Author).WithMany().HasForeignKey(d => d.AuthorId)
@@ -35,6 +38,25 @@ public static class DatabaseSetup
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FraternityDb>();
         await db.Database.EnsureCreatedAsync();
+        // EnsureCreated does not add tables to existing SQLite databases.
+        // This additive, idempotent upgrade preserves all existing group data.
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS "AccountRequests" (
+                "Id" TEXT NOT NULL PRIMARY KEY,
+                "DisplayName" TEXT NOT NULL,
+                "Email" TEXT NOT NULL,
+                "NormalizedEmail" TEXT NOT NULL,
+                "Note" TEXT NOT NULL,
+                "CreatedUtc" TEXT NOT NULL,
+                "TokenSha256" TEXT NULL,
+                "ExpiresUtc" TEXT NULL,
+                "GrantAdmin" INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_AccountRequests_NormalizedEmail"
+                ON "AccountRequests" ("NormalizedEmail");
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_AccountRequests_TokenSha256"
+                ON "AccountRequests" ("TokenSha256");
+            """);
 
         if (!await db.Groups.AnyAsync())
         {
