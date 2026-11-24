@@ -54,6 +54,11 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<FraternitasEmailService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.resend.com/");
+    client.Timeout = TimeSpan.FromSeconds(12);
+});
 builder.Services.AddHttpClient<CatholicBibleService>(client =>
 {
     client.BaseAddress = new Uri("https://bible.helloao.org/");
@@ -203,6 +208,7 @@ app.UseAntiforgery();
 
 app.MapAccountEndpoints();
 app.MapPasswordRecoveryEndpoints();
+app.MapEmailTestEndpoints();
 app.MapUserPreferenceEndpoints();
 app.MapDocumentUploadEndpoints();
 app.MapCalendarEventEndpoints();
