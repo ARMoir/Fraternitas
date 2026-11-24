@@ -176,11 +176,16 @@ form[action="/documents/upload"] input[type=file]{width:min(100%,460px)}
 /* Inline per-verse pinning and reflection editor */
 .scripture-verse-entry{border-bottom:1px solid #e9eee5;padding:.25rem 0}
 .scripture-verse-entry:last-of-type{border-bottom:0}
-.scripture-verse-row{display:flex;align-items:baseline;gap:.75rem}
-.scripture-verse-row .scripture-verse{flex:1;min-width:0}
-.verse-pin-button{flex-shrink:0;white-space:nowrap;background:transparent;color:#3b6c59;border:1px solid #ccdfd1;border-radius:7px;padding:.3rem .55rem;font:inherit;font-size:.76rem;font-weight:650;cursor:pointer}
-.verse-pin-button:hover,.verse-pin-button:focus-visible{background:#e8f1e7}
-.verse-pin-editor{margin:.35rem 0 1rem;padding:1rem;background:#eef5eb;border:1px solid #d4e5d4;border-radius:10px}
+.scripture-verse-row{display:flex;align-items:flex-start;gap:.55rem;flex-wrap:wrap}
+.scripture-verse-row .scripture-verse{flex:1 1 0;min-width:0;margin:.45rem 0}
+.verse-pin-details{flex:0 0 auto;margin-top:.48rem}
+.scripture-verse-row .verse-pin-details[open]{flex:0 0 100%;margin-top:0}
+/* Override the larger generic reading summary padding for the compact per-verse action. */
+.scripture-fold .verse-pin-details > summary.verse-pin-button{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;background:transparent;color:#3b6c59;border:1px solid #ccdfd1;border-radius:6px;padding:.19rem .4rem;font:inherit;font-size:.7rem;line-height:1.2;font-weight:650;cursor:pointer;list-style:none}
+.scripture-fold .verse-pin-details > summary.verse-pin-button::-webkit-details-marker{display:none}
+.scripture-fold .verse-pin-details > summary.verse-pin-button:hover,
+.scripture-fold .verse-pin-details > summary.verse-pin-button:focus-visible{background:#e8f1e7}
+.verse-pin-editor{margin:.4rem 0 .8rem;padding:1rem;background:#eef5eb;border:1px solid #d4e5d4;border-radius:10px}
 .verse-pin-editor .section-head{margin-bottom:.5rem}
 .verse-pin-editor label{margin:.5rem 0}
 .verse-pin-actions{display:flex;align-items:end;gap:.75rem;flex-wrap:wrap;margin-top:.8rem}
@@ -188,7 +193,7 @@ form[action="/documents/upload"] input[type=file]{width:min(100%,460px)}
 .verse-pin-actions .action{font-size:.85rem;padding:.65rem .9rem;min-height:39px}
 .verse-pin-actions button:disabled{opacity:.6;cursor:wait}
 .verse-reply-link{margin:1rem 0}
-@media(max-width:560px){.scripture-verse-row{gap:.35rem}.verse-pin-button{font-size:.7rem;padding:.3rem .4rem}.verse-pin-actions .action{width:100%}.verse-pin-date{max-width:none;width:100%}}
+@media(max-width:560px){.scripture-verse-row{gap:.35rem}.scripture-fold .verse-pin-details > summary.verse-pin-button{font-size:.67rem;padding:.18rem .34rem}.verse-pin-actions .action{width:100%}.verse-pin-date{max-width:none;width:100%}}
 
 
 /* 73-book Catholic Bible browser in Discussions. Entirely server-rendered. */
