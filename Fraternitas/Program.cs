@@ -202,6 +202,7 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapAccountEndpoints();
+app.MapPasswordRecoveryEndpoints();
 app.MapUserPreferenceEndpoints();
 app.MapDocumentUploadEndpoints();
 app.MapCalendarEventEndpoints();
