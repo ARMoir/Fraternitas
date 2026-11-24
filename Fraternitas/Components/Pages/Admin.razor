@@ -67,6 +67,9 @@
        to <strong>Member only</strong> if they should not manage the calendar, invitations, or other members.</p>
     <p class="muted small">Role changes are saved permanently. The affected member should sign out and back
        in (or fully reload their session) for the updated access to take effect.</p>
+    <p class="muted small"><strong>Password help:</strong> members can request a reset from the login page.
+       Select <strong>Reset password</strong> beside their account to generate a private, single-use link.
+       Share it with them directly, not in the group chat. No email server is required.</p>
 
     @if (ActionStatus == "role-saved")
     {
@@ -90,6 +93,15 @@
             </div>
             <div class="member-access-controls">
                 <span class="member-access-role">@(member.IsMemberOnly ? "Member only" : "Administrator")</span>
+                @if (resetRequests.Contains(member.Id))
+                {
+                    <span class="member-reset-requested">Reset requested</span>
+                }
+                <form method="post" action="/admin/members/password-reset" data-enhance="false">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="userId" value="@member.Id" />
+                    <button type="submit" class="action secondary compact">Reset password</button>
+                </form>
                 @if (member.IsMemberOnly)
                 {
                     <form method="post" action="/admin/members/role" data-enhance="false">
@@ -123,6 +135,7 @@
     private int eventCount;
     private int outstandingInvites;
     private List<MemberAccessRow> members = [];
+    private HashSet<string> resetRequests = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -134,5 +147,10 @@
             .OrderBy(i => i.ExpiresUtc).ToListAsync();
         outstandingInvites = activeInvites.Count;
         members = await Access.GetMembersAsync();
+        resetRequests = (await db.Set<Microsoft.AspNetCore.Identity.IdentityUserToken<string>>()
+            .AsNoTracking()
+            .Where(t => t.LoginProvider == PasswordRecoveryEndpoints.Provider
+                && t.Name == PasswordRecoveryEndpoints.RequestName)
+            .Select(t => t.UserId).ToListAsync()).ToHashSet();
     }
 }
