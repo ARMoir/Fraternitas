@@ -80,7 +80,7 @@
                         <div class="frat-calendar-appointments">
                             @foreach (var ev in dayEvents.Take(5))
                             {
-                                <a class="@EventCssClass(ev)" href="@($"#event-{ev.Id:N}")"
+                                <a class="@EventCssClass(ev)" href="@EventDetailsUrl(ev.Id)"
                                    title="@ev.Title">@ev.Title</a>
                             }
                             @if (dayEvents.Count > 5)
@@ -105,7 +105,7 @@
                     <h3><a href="@CalendarUrl("day", day)">@day.ToString("ddd, MMM d")</a></h3>
                     @foreach (var ev in dayEvents)
                     {
-                        <a class="@EventCssClass(ev)" href="@($"#event-{ev.Id:N}")"
+                        <a class="@EventCssClass(ev)" href="@EventDetailsUrl(ev.Id)"
                            title="@ev.Title">@ev.Title</a>
                     }
                     @if (dayEvents.Count == 0) { <p class="muted small">No events</p> }
@@ -136,7 +136,7 @@
             }
             @foreach (var ev in EventsOn(selectedDate))
             {
-                <a class="@EventCssClass(ev)" href="@($"#event-{ev.Id:N}")">
+                <a class="@EventCssClass(ev)" href="@EventDetailsUrl(ev.Id)">
                     <strong>@ev.Title</strong>
                     <small>@EventTime(ev)</small>
                 </a>
@@ -164,11 +164,11 @@
 @if (isAdmin)
 {
     <div id="create-event" class="calendar-native-modal">
-        <a class="calendar-native-backdrop" href="#calendar-top" aria-label="Close new event window"></a>
+        <a class="calendar-native-backdrop" href="@CloseModalUrl" aria-label="Close new event window"></a>
         <section class="panel calendar-native-dialog" role="dialog" aria-modal="true" aria-labelledby="create-event-title">
             <div class="section-head">
                 <h2 id="create-event-title">Add calendar event</h2>
-                <a class="calendar-native-close" href="#calendar-top" aria-label="Close">✕</a>
+                <a class="calendar-native-close" href="@CloseModalUrl" aria-label="Close">✕</a>
             </div>
             @if (CreateResult == "invalid")
             {
@@ -222,7 +222,7 @@
                 </label>
                 <div class="button-row">
                     <button class="action" type="submit">Save event</button>
-                    <a class="action secondary" href="#calendar-top">Cancel</a>
+                    <a class="action secondary" href="@CloseModalUrl">Cancel</a>
                 </div>
             </form>
         </section>
@@ -232,7 +232,7 @@
 @foreach (var ev in visibleEvents)
 {
     <div id="@($"event-{ev.Id:N}")" class="calendar-native-modal">
-        <a class="calendar-native-backdrop" href="#calendar-top" aria-label="Close event details"></a>
+        <a class="calendar-native-backdrop" href="@CloseModalUrl" aria-label="Close event details"></a>
         <section class="panel calendar-native-dialog" role="dialog" aria-modal="true"
                  aria-label="@ev.Title">
             <div class="section-head">
@@ -240,7 +240,7 @@
                     <div class="eyebrow">@ev.Category.ToUpperInvariant()</div>
                     <h2>@ev.Title</h2>
                 </div>
-                <a class="calendar-native-close" href="#calendar-top" aria-label="Close">✕</a>
+                <a class="calendar-native-close" href="@CloseModalUrl" aria-label="Close">✕</a>
             </div>
             @if (ev.StartLocal.TimeOfDay == TimeSpan.Zero
                 && ev.EndLocal == ev.StartLocal.Date.AddDays(1))
@@ -271,7 +271,7 @@
                 {
                     <a class="action" href="@EditEventUrl(ev.Id)">Edit event</a>
                 }
-                <a class="action secondary" href="#calendar-top">Close</a>
+                <a class="action secondary" href="@CloseModalUrl">Close</a>
             </div>
         </section>
     </div>
@@ -280,7 +280,7 @@
 @if (isAdmin && EditingEvent is { } editingEvent)
 {
     <div id="edit-event" class="calendar-native-modal">
-        <a class="calendar-native-backdrop" href="@($"#event-{editingEvent.Id:N}")" aria-label="Back to event details"></a>
+        <a class="calendar-native-backdrop" href="@EventDetailsUrl(editingEvent.Id)" aria-label="Back to event details"></a>
         <section class="panel calendar-native-dialog calendar-event-editor" role="dialog" aria-modal="true"
                  aria-labelledby="edit-event-title">
             <div class="section-head">
@@ -289,7 +289,7 @@
                     <h2 id="edit-event-title">Edit event</h2>
                     <p class="muted small">@editingEvent.Title</p>
                 </div>
-                <a class="calendar-native-close" href="@($"#event-{editingEvent.Id:N}")" aria-label="Back to details">✕</a>
+                <a class="calendar-native-close" href="@EventDetailsUrl(editingEvent.Id)" aria-label="Back to details">✕</a>
             </div>
             @if (EditError == "invalid")
             {
@@ -341,7 +341,7 @@
                 </label>
                 <div class="button-row">
                     <button class="action" type="submit">Save changes</button>
-                    <a class="action secondary" href="@($"#event-{editingEvent.Id:N}")">Cancel</a>
+                    <a class="action secondary" href="@EventDetailsUrl(editingEvent.Id)">Cancel</a>
                 </div>
             </form>
             <details class="calendar-edit-delete">
@@ -349,6 +349,9 @@
                 <p class="muted small">This removes the event from the calendar. Its documents and discussions remain available to the group.</p>
                 <form method="post" action="@($"/calendar/events/{editingEvent.Id}/delete")" data-enhance="false">
                     <AntiforgeryToken />
+                    <input type="hidden" name="calendarModal" value="true" />
+                    <input type="hidden" name="calendarView" value="@selectedView" />
+                    <input type="hidden" name="calendarDate" value="@selectedDate.ToString("yyyy-MM-dd")" />
                     <label class="calendar-delete-confirm">
                         <input type="checkbox" name="confirmDelete" value="yes" required />
                         I understand this event will be deleted.
@@ -451,6 +454,13 @@
 
     private string CreateSlotUrl(DateTime start) =>
         $"{CalendarUrl(selectedView, start.Date)}&slot={start:yyyy-MM-ddTHH:mm}#create-event";
+
+    // App.razor sets <base href="/">. Fragment-only hrefs resolve against the
+    // site root, not the calendar. Always include the calendar route and view.
+    private string EventDetailsUrl(Guid id) =>
+        $"{CalendarUrl(selectedView, selectedDate)}#event-{id:N}";
+
+    private string CloseModalUrl => $"{CalendarUrl(selectedView, selectedDate)}#calendar-top";
 
     private string EditEventUrl(Guid id) =>
         $"{CalendarUrl(selectedView, selectedDate)}&edit={id:N}#edit-event";
