@@ -214,6 +214,7 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapAccountEndpoints();
+app.MapAccountRequestEndpoints();
 app.MapPasswordRecoveryEndpoints();
 app.MapEmailTestEndpoints();
 app.MapUserPreferenceEndpoints();
