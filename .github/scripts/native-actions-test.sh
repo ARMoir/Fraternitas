@@ -184,3 +184,13 @@ status=$(curl -sS -o /dev/null -w '%{http_code}' \
   --data-urlencode "anything=1" "$base/admin/invitations/create")
 test "$status" = "302" || test "$status" = "401" || test "$status" = "403"
 echo "Admin-only invitation creation rejects anonymous POST"
+
+# Password recovery pages and administrator controls must render over plain HTTP.
+curl -sSf -b "$cookies" "$base/account/login" -o "$RUNNER_TEMP/recovery-login.html"
+grep -q 'Forgot your password?' "$RUNNER_TEMP/recovery-login.html"
+curl -sSf -b "$cookies" "$base/account/forgot-password" -o "$RUNNER_TEMP/recovery-request.html"
+grep -q 'action="/account/forgot-password"' "$RUNNER_TEMP/recovery-request.html"
+grep -q 'Request password reset' "$RUNNER_TEMP/recovery-request.html"
+curl -sSf -b "$cookies" "$base/admin" -o "$RUNNER_TEMP/recovery-admin.html"
+grep -q 'action="/admin/members/password-reset"' "$RUNNER_TEMP/recovery-admin.html"
+echo "Forgot-password and administrator recovery controls rendered"
