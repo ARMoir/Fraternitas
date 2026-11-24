@@ -77,7 +77,7 @@ public static class PasswordRecoveryEndpoints
                             await SetTokenAsync(db, member.Id, EmailCooldownName,
                                 now.ToString("O"), context.RequestAborted);
                             url = await CreateLinkAsync(db, member.Id, configuration, environment,
-                                context, context.RequestAborted);
+                                context, true, context.RequestAborted);
                         }
                         await db.SaveChangesAsync(context.RequestAborted);
                         await transaction.CommitAsync(context.RequestAborted);
@@ -126,7 +126,7 @@ public static class PasswordRecoveryEndpoints
             await using (var transaction = await db.Database.BeginTransactionAsync(context.RequestAborted))
             {
                 url = await CreateLinkAsync(db, member.Id, configuration, environment,
-                    context, context.RequestAborted);
+                    context, mail.IsConfigured, context.RequestAborted);
                 var request = await db.Set<IdentityUserToken<string>>().FirstOrDefaultAsync(t =>
                     t.UserId == memberId && t.LoginProvider == Provider &&
                     t.Name == RequestName, context.RequestAborted);
@@ -257,18 +257,21 @@ public static class PasswordRecoveryEndpoints
 
     private static async Task<string> CreateLinkAsync(FraternityDb db, string uid,
         IConfiguration configuration, IWebHostEnvironment environment, HttpContext context,
-        CancellationToken cancellation)
+        bool emailEnabled, CancellationToken cancellation)
     {
         var code = AccountEndpoints.NewToken();
         await SetTokenAsync(db, uid, LinkName,
             DateTime.UtcNow.Add(LinkLifetime).ToString("O") + "|" + AccountEndpoints.Hash(code),
             cancellation);
 
-        // Never derive emailed recovery links from an untrusted Host header.
+        // All emailed links use the configured or canonical public origin, even
+        // if a development server is running. Local manual-only tests may use loopback.
         var configured = configuration["FRATERNITAS_PUBLIC_URL"];
+        var localOrigin = $"{context.Request.Scheme}://{context.Request.Host}";
+        var isLocal = Uri.TryCreate(localOrigin, UriKind.Absolute, out var localUri) && localUri.IsLoopback;
         var origin = !string.IsNullOrWhiteSpace(configured) ? configured.TrimEnd('/')
-            : environment.IsProduction() ? "https://fraternitas.moir.pw"
-            : $"{context.Request.Scheme}://{context.Request.Host}";
+            : !emailEnabled && environment.IsDevelopment() && isLocal
+                ? localOrigin : "https://fraternitas.moir.pw";
         return $"{origin}/account/reset-password?uid={Uri.EscapeDataString(uid)}&code={Uri.EscapeDataString(code)}";
     }
 
