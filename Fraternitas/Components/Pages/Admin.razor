@@ -17,8 +17,8 @@
            register his own account using the <strong>same link</strong>, as many times as needed.
            The invitation expires after seven days, or sooner if you revoke it.</p>
         <p class="muted small"><strong>Access notice:</strong> anyone who registers with this link
-           becomes an Administrator by default, including access to event management, invitations,
-           and member roles. Only share it with people you trust.</p>
+           becomes a Member, with access to the shared calendar and other group features.
+           Only share it with intended members.</p>
         @if (Navigation.ToAbsoluteUri("/").IsLoopback)
         {
             <p class="error">This site is running on localhost. The invitation URL will
@@ -94,12 +94,7 @@
                 <form method="post" action="/admin/account-requests/approve" data-enhance="false">
                     <AntiforgeryToken />
                     <input type="hidden" name="requestId" value="@request.Id" />
-                    <label class="small">Access on registration
-                        <select name="grantAdmin">
-                            <option value="false" selected="@(!request.GrantAdmin)">Member only</option>
-                            <option value="true" selected="@request.GrantAdmin">Administrator</option>
-                        </select>
-                    </label>
+                    <span class="muted small">Registers as Member</span>
                     <button type="submit" class="action compact">@(active ? "Resend registration link" : "Approve & email registration link")</button>
                 </form>
                 <form method="post" action="/admin/account-requests/delete" data-enhance="false">
@@ -135,8 +130,9 @@
 
 <section class="panel">
     <div class="section-head"><h2>Member access</h2><span class="muted">@members.Count accounts</span></div>
-    <p>All group members are <strong>Administrators by default</strong>. You can explicitly switch a person
-       to <strong>Member only</strong> if they should not manage the calendar, invitations, or other members.</p>
+    <p>New accounts start as <strong>Member only</strong>. All members can view and add calendar events,
+       and edit or delete their own events. Administrators can manage every event, invitations, and member roles.
+       Existing administrators retain their access.</p>
     <p class="muted small">Role changes are saved permanently. The affected member should sign out and back
        in (or fully reload their session) for the updated access to take effect.</p>
     <p class="muted small"><strong>Password help:</strong> members can request an emailed reset from the login page.

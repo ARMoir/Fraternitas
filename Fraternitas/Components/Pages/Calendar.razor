@@ -4,6 +4,7 @@
 @inject AuthenticationStateProvider Authentication
 @inject NavigationManager Navigation
 @inject UserPreferencesService Preferences
+@inject MemberAccessService Access
 
 <PageTitle>Calendar | Fraternitas</PageTitle>
 <div class="page-head">
@@ -17,7 +18,7 @@
         <p class="upload-success" role="status">The event was removed from the group calendar.</p>
     }
     <div class="calendar-toolbar">
-        @if (isAdmin)
+        @if (canCreate)
         {
             <a class="action compact" href="@CreateSlotUrl(selectedDate.Date.AddHours(20))">+ Add event</a>
             <a class="action secondary compact" href="/readings">📌 Pin Scripture</a>
@@ -34,7 +35,7 @@
             <button class="action secondary compact" type="submit">Apply</button>
         </form>
     </div>
-    @if (isAdmin)
+    @if (canCreate)
     {
         <p class="calendar-slot-hint">Select an empty day or an hourly time slot to add an event.</p>
     }
@@ -67,7 +68,7 @@
                     var dayEvents = EventsOn(day);
                     <div class="frat-calendar-day @(day.Month == selectedDate.Month ? "" : "frat-calendar-other-month")"
                          role="cell">
-                        @if (isAdmin)
+                        @if (canCreate)
                         {
                             <a class="frat-calendar-slot-overlay" href="@CreateSlotUrl(day.Date.AddHours(20))"
                                aria-label="@($"Add an event on {day:dddd, MMMM d, yyyy}")"
@@ -109,7 +110,7 @@
                            title="@ev.Title">@ev.Title</a>
                     }
                     @if (dayEvents.Count == 0) { <p class="muted small">No events</p> }
-                    @if (isAdmin)
+                    @if (canCreate)
                     {
                         <div class="frat-calendar-slot-list" aria-label="@($"Time slots for {day:dddd, MMMM d}")">
                             @foreach (var hour in CalendarHours)
@@ -141,7 +142,7 @@
                     <small>@EventTime(ev)</small>
                 </a>
             }
-            @if (isAdmin)
+            @if (canCreate)
             {
                 <h3 class="frat-calendar-slots-title">Select a time to add an event</h3>
                 <div class="frat-calendar-day-slots">
@@ -161,7 +162,7 @@
 
 @* These are URL-fragment-controlled windows, so opening and closing them
    works with ordinary links, even when Blazor Server is disconnected. *@
-@if (isAdmin)
+@if (canCreate)
 {
     <div id="create-event" class="calendar-native-modal">
         <a class="calendar-native-backdrop" href="@CloseModalUrl" aria-label="Close new event window"></a>
@@ -267,7 +268,7 @@
                     <a class="action secondary" href="@ev.MeetingUrl" target="_blank"
                        rel="noopener noreferrer">Join meeting</a>
                 }
-                @if (isAdmin)
+                @if (CanEdit(ev))
                 {
                     <a class="action" href="@EditEventUrl(ev.Id)">Edit event</a>
                 }
@@ -277,7 +278,7 @@
     </div>
 }
 
-@if (isAdmin && EditingEvent is { } editingEvent)
+@if (EditingEvent is { } editingEvent && CanEdit(editingEvent))
 {
     <div id="edit-event" class="calendar-native-modal">
         <a class="calendar-native-backdrop" href="@EventDetailsUrl(editingEvent.Id)" aria-label="Back to event details"></a>
@@ -285,7 +286,7 @@
                  aria-labelledby="edit-event-title">
             <div class="section-head">
                 <div>
-                    <div class="eyebrow">CALENDAR ADMINISTRATION</div>
+                    <div class="eyebrow">CALENDAR EVENT</div>
                     <h2 id="edit-event-title">Edit event</h2>
                     <p class="muted small">@editingEvent.Title</p>
                 </div>
@@ -505,11 +506,17 @@
         : events.Where(e => e.Category != "Prayer" || e.Title != "Daily prayer & Examen").ToList();
     private List<Reading> readings = [];
     private bool isAdmin;
+    private bool canCreate;
+    private string? currentUserId;
+    private bool CanEdit(CalendarEvent ev) => canCreate && (isAdmin ||
+        (ev.CreatedByUserId is not null && ev.CreatedByUserId == currentUserId));
 
     protected override async Task OnInitializedAsync()
     {
         var state = await Authentication.GetAuthenticationStateAsync();
-        isAdmin = state.User.IsInRole("Admin");
+        canCreate = await Access.IsGroupMemberAsync(state.User);
+        isAdmin = await Access.IsAdministratorAsync(state.User);
+        currentUserId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         showDailyPrayer = await Preferences.GetBooleanAsync(
             state.User, UserPreferencesService.CalendarShowDailyPrayer);
         await using var db = await DbFactory.CreateDbContextAsync();

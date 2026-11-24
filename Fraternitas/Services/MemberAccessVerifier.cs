@@ -53,10 +53,10 @@ public static class MemberAccessVerifier
         if (await users.IsInRoleAsync(existing, "Admin"))
             throw new Exception("Test legacy member should initially lack the Admin role.");
 
-        // Upgrade users that were invited before Admin became the default.
+        // Startup must preserve administrators and never promote ordinary members.
         await MemberAccessService.ReconcileDefaultsAsync(services, logger);
-        if (!(await StateAsync(existing.Id)).IsAdmin)
-            throw new Exception("Existing Member was not promoted to default Admin on startup.");
+        if ((await StateAsync(existing.Id)).IsAdmin || !(await StateAsync(actor.Id)).IsAdmin)
+            throw new Exception("Startup changed an existing member or administrator role.");
 
         var actorPrincipal = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, actor.Id),
@@ -109,6 +109,6 @@ public static class MemberAccessVerifier
         if (!staleDenied)
             throw new Exception("Demoted user with stale Admin cookie was allowed to change roles.");
 
-        Console.WriteLine("Default-admin access verified: legacy upgrade, persistent Member-only override, restoration, last-admin protection and stale-cookie rejection.");
+        Console.WriteLine("Member-default access verified: existing administrators preserved, no automatic promotion, persistent downgrade, restoration, last-admin protection and stale-cookie rejection.");
     }
 }

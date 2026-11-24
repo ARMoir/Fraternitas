@@ -174,7 +174,7 @@ public static class AccountEndpoints
                 : "";
             var form = $"""
                 <h1>Join the fraternity</h1><p>Create your private group account.</p>
-                <p class="muted">New members receive Administrator access by default. Your group can change your access to Member only later.</p>{error}{missingCode}
+                <p class="muted">New members can view and add calendar events and participate in the group. Administrators can grant additional access later.</p>{error}{missingCode}
                 <form method="post" action="/account/join">
                   <input type="hidden" name="__RequestVerificationToken" value="{token}">
                   <label>Invitation code<input name="code" value="{code}" required></label>
@@ -215,14 +215,10 @@ public static class AccountEndpoints
                 GroupId = invite.GroupId, EmailConfirmed = true };
             var created = await users.CreateAsync(member, password);
             if (!created.Succeeded) return Results.Redirect(JoinRetryUrl(code, "account"));
-            // Everyone joining the group starts as an administrator unless an
-            // existing administrator later explicitly sets their access to Member only.
-            foreach (var role in new[] { "Member", "Admin" })
-            {
-                var assigned = await users.AddToRoleAsync(member, role);
-                if (!assigned.Succeeded)
-                    return Results.Problem("Could not finish creating your account.");
-            }
+            if (!(await users.AddToRoleAsync(member, "Member")).Succeeded)
+                return Results.Problem("Could not finish creating your account.");
+            if (!(await users.AddClaimAsync(member, new System.Security.Claims.Claim(MemberAccessService.MemberOnlyClaimType, "true"))).Succeeded)
+                return Results.Problem("Could not finish creating your account.");
             await transaction.CommitAsync();
             await signIn.SignInAsync(member, false);
             return Results.Redirect("/");

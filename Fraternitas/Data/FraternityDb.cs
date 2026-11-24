@@ -58,6 +58,12 @@ public static class DatabaseSetup
                 ON "AccountRequests" ("TokenSha256");
             """);
 
+        // Existing calendars have no recorded owner. Add a nullable column before any event query.
+        var ownerColumnCount = await db.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(*) AS Value FROM pragma_table_info('CalendarEvents') WHERE name = 'CreatedByUserId'").SingleAsync();
+        if (ownerColumnCount == 0)
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE CalendarEvents ADD COLUMN CreatedByUserId TEXT NULL");
+
         if (!await db.Groups.AnyAsync())
         {
             db.Groups.Add(new FraternityGroup { Id = 1, Name = "Men of Advent",

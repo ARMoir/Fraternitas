@@ -30,14 +30,13 @@ public static class ScripturePinVerifier
             await db.SaveChangesAsync();
         }
 
-        // Grant the test identity an actual stored Admin role. A fabricated
-        // Admin claim alone must not permit calendar modifications.
+        // Exercise Scripture pinning using a real non-admin member.
         var users = scope.ServiceProvider.GetRequiredService<UserManager<Member>>();
         var stored = await users.FindByIdAsync(testId)
             ?? throw new Exception("Test member was not created.");
-        var assigned = await users.AddToRoleAsync(stored, "Admin");
+        var assigned = await users.AddToRoleAsync(stored, "Member");
         if (!assigned.Succeeded)
-            throw new Exception("Could not create test administrator: " +
+            throw new Exception("Could not create test member: " +
                 string.Join("; ", assigned.Errors.Select(e => e.Description)));
 
         ClaimsPrincipal Principal(bool admin)
@@ -48,14 +47,13 @@ public static class ScripturePinVerifier
         }
 
         var member = Principal(false);
-        var admin = Principal(true);
         const string reference = "Luke 1:26";
         var date = new DateTime(2026, 11, 25);
         const string reflection = "A prayerful reminder to listen.";
 
         var discussionId = await pins.PinToDiscussionAsync(member, reference, reflection);
         var replyId = await pins.PinToReplyAsync(member, discussionId, reference);
-        var eventId = await pins.PinToCalendarAsync(admin, reference, date, reflection);
+        var eventId = await pins.PinToCalendarAsync(member, reference, date, reflection);
 
         await using (var db = await dbFactory.CreateDbContextAsync())
         {
@@ -71,7 +69,7 @@ public static class ScripturePinVerifier
                 || !reply.Body.Contains(reference))
                 throw new Exception("Scripture reply was not saved to the intended group discussion.");
 
-            if (ev.Category != "Scripture" || ev.Scripture != reference
+            if (ev.CreatedByUserId != testId || ev.Category != "Scripture" || ev.Scripture != reference
                 || ev.StartLocal != date || ev.EndLocal != date.AddDays(1)
                 || !ev.Description.Contains("Douay–Rheims"))
                 throw new Exception("All-day calendar Scripture pin was not saved correctly.");
@@ -80,7 +78,7 @@ public static class ScripturePinVerifier
         var denied = false;
         try
         {
-            await pins.PinToCalendarAsync(member, reference, date);
+            await pins.PinToCalendarAsync(new ClaimsPrincipal(new ClaimsIdentity()), reference, date);
         }
         catch (UnauthorizedAccessException)
         {
@@ -88,8 +86,8 @@ public static class ScripturePinVerifier
         }
 
         if (!denied)
-            throw new Exception("A non-admin member could pin Scripture to the calendar.");
+            throw new Exception("An anonymous visitor could pin Scripture to the calendar.");
 
-        Console.WriteLine("Verified Catholic Scripture pin creation: discussion topic, reply, all-day calendar event, and admin-only calendar authorization.");
+        Console.WriteLine("Verified Catholic Scripture pin creation: discussion topic, reply, all-day calendar event, and member calendar authorization, ownership and anonymous rejection.");
     }
 }

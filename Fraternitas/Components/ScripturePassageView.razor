@@ -1,5 +1,6 @@
 @using Fraternitas.Services
 @inject AuthenticationStateProvider Authentication
+@inject MemberAccessService Access
 
 @if (Passage is null)
 {
@@ -46,7 +47,7 @@ else
                                     <button type="submit" name="mode" value="discussion" class="action">
                                         @(DiscussionId.HasValue ? "Pin in this discussion" : "Share in discussions")
                                     </button>
-                                    @if (isAdmin)
+                                    @if (canPinCalendar)
                                     {
                                         <label class="verse-pin-date">Calendar date (Eastern)
                                             <input type="date" name="calendarDate"
@@ -76,12 +77,12 @@ else
     [Parameter] public bool Expanded { get; set; }
     [Parameter] public Guid? DiscussionId { get; set; }
 
-    private bool isAdmin;
+    private bool canPinCalendar;
 
     protected override async Task OnInitializedAsync()
     {
         var state = await Authentication.GetAuthenticationStateAsync();
-        isAdmin = state.User.IsInRole("Admin");
+        canPinCalendar = await Access.IsGroupMemberAsync(state.User);
     }
 
     private string VerseReference(int verseNumber)

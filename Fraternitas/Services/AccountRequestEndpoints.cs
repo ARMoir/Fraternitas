@@ -82,7 +82,7 @@ public static class AccountRequestEndpoints
             if (!await AccountEndpoints.ValidForm(ctx, csrf)) return Results.BadRequest("Invalid request.");
             var form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
             if (!Guid.TryParse(form["requestId"], out var id)) return Results.Redirect("/admin?status=failed");
-            var grantAdmin = form["grantAdmin"].ToString() == "true";
+            // New accounts always start as members. Promotion is a separate admin action.
             var code = AccountEndpoints.NewToken();
             AccountRequest? request;
             await using (var transaction = await db.Database.BeginTransactionAsync(ctx.RequestAborted))
@@ -93,7 +93,7 @@ public static class AccountRequestEndpoints
                     return Results.Redirect("/admin?status=failed");
                 request.TokenSha256 = AccountEndpoints.Hash(code);
                 request.ExpiresUtc = DateTime.UtcNow.AddDays(7);
-                request.GrantAdmin = grantAdmin;
+                request.GrantAdmin = false;
                 await db.SaveChangesAsync(ctx.RequestAborted);
                 await transaction.CommitAsync(ctx.RequestAborted);
             }
@@ -183,9 +183,7 @@ public static class AccountRequestEndpoints
                     """);
             if (!(await users.AddToRoleAsync(member, "Member")).Succeeded)
                 return Results.Problem("Could not finish registration.");
-            var accessResult = request.GrantAdmin
-                ? await users.AddToRoleAsync(member, "Admin")
-                : await users.AddClaimAsync(member, new Claim(MemberAccessService.MemberOnlyClaimType, "true"));
+            var accessResult = await users.AddClaimAsync(member, new Claim(MemberAccessService.MemberOnlyClaimType, "true"));
             if (!accessResult.Succeeded) return Results.Problem("Could not finish registration.");
             // Consume the approved request atomically with creating the account.
             db.AccountRequests.Remove(request);

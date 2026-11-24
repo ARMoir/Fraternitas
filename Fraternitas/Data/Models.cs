@@ -29,6 +29,8 @@ public sealed class CalendarEvent
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public int GroupId { get; set; } = 1;
+    // Null for legacy and seeded events; ownership is assigned only by the server.
+    public string? CreatedByUserId { get; set; }
     [Required, MaxLength(150)] public string Title { get; set; } = "";
     // Group-local wall-clock time, America/New_York; converted for iCalendar export.
     public DateTime StartLocal { get; set; }

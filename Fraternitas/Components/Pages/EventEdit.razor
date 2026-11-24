@@ -1,5 +1,5 @@
 @page "/events/{Id:guid}/edit"
-@attribute [Authorize(Roles = "Admin")]
+@attribute [Authorize]
 @inject IDbContextFactory<FraternityDb> DbFactory
 @inject AuthenticationStateProvider Authentication
 @inject MemberAccessService MemberAccess
@@ -9,8 +9,8 @@
 @if (!authorized)
 {
     <section class="panel">
-        <h1>Administrator access required</h1>
-        <p>Your role may have changed. Sign in again to manage events.</p>
+        <h1>Event editing not permitted</h1>
+        <p>Only the event creator or an administrator can edit or delete this event.</p>
     </section>
 }
 else if (ev is null)
@@ -23,7 +23,7 @@ else if (ev is null)
 else
 {
     <div class="page-head">
-        <div class="eyebrow">CALENDAR ADMINISTRATION</div>
+        <div class="eyebrow">CALENDAR EVENT</div>
         <h1>Edit event</h1>
         <p>@ev.Title</p>
     </div>
@@ -116,13 +116,11 @@ else
     protected override async Task OnParametersSetAsync()
     {
         var user = (await Authentication.GetAuthenticationStateAsync()).User;
-        authorized = await MemberAccess.IsAdministratorAsync(user);
-        if (!authorized)
-            return;
-
         await using var db = await DbFactory.CreateDbContextAsync();
         ev = await db.CalendarEvents.AsNoTracking()
             .FirstOrDefaultAsync(item => item.Id == Id && item.GroupId == 1);
+        authorized = ev is null || await MemberAccess.CanManageEventAsync(user, ev);
+        if (!authorized) return;
         readings = await db.Readings.AsNoTracking().OrderBy(r => r.Week).ToListAsync();
     }
 }

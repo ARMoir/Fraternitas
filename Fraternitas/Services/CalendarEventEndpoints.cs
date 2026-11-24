@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Claims;
 using Fraternitas.Data;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +10,7 @@ namespace Fraternitas.Services;
 /// <summary>
 /// Form-based calendar event management. Works from a plain HTTP browser
 /// without a Blazor Server circuit. The persistence routes always re-check
-/// administrator access and validate antiforgery tokens.
+/// group membership or event ownership/administrator access and validate antiforgery tokens.
 /// </summary>
 public static class CalendarEventEndpoints
 {
@@ -20,14 +21,14 @@ public static class CalendarEventEndpoints
     public static void MapCalendarEventEndpoints(this WebApplication app)
     {
         var endpoints = app.MapGroup("/calendar/events")
-            .RequireAuthorization(new AuthorizeAttribute { Roles = "Admin" });
+            .RequireAuthorization();
 
         endpoints.MapPost("/create", async (
             HttpContext context, IAntiforgery antiforgery,
             IDbContextFactory<FraternityDb> factory,
             MemberAccessService access) =>
         {
-            if (!await access.IsAdministratorAsync(context.User))
+            if (!await access.IsGroupMemberAsync(context.User))
                 return Results.Forbid();
             if (!await ValidateFormAsync(context, antiforgery))
                 return Results.BadRequest("Invalid or expired form token. Reload the calendar.");
@@ -46,7 +47,7 @@ public static class CalendarEventEndpoints
                 return Results.Redirect($"{calendarUrl}&create=invalid{slot}#create-event");
             }
 
-            var ev = new CalendarEvent { GroupId = 1 };
+            var ev = new CalendarEvent { GroupId = 1, CreatedByUserId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) };
             Apply(ev, input);
             db.CalendarEvents.Add(ev);
             await db.SaveChangesAsync(context.RequestAborted);
@@ -58,8 +59,6 @@ public static class CalendarEventEndpoints
             IDbContextFactory<FraternityDb> factory,
             MemberAccessService access) =>
         {
-            if (!await access.IsAdministratorAsync(context.User))
-                return Results.Forbid();
             if (!await ValidateFormAsync(context, antiforgery))
                 return Results.BadRequest("Invalid or expired form token. Reload the editor.");
 
@@ -68,6 +67,8 @@ public static class CalendarEventEndpoints
                 .FirstOrDefaultAsync(e => e.Id == id && e.GroupId == 1);
             if (ev is null)
                 return Results.NotFound();
+            if (!await access.CanManageEventAsync(context.User, ev))
+                return Results.Forbid();
 
             var form = await context.Request.ReadFormAsync(context.RequestAborted);
             var input = await ParseAsync(form, db);
@@ -90,8 +91,6 @@ public static class CalendarEventEndpoints
             IDbContextFactory<FraternityDb> factory,
             MemberAccessService access) =>
         {
-            if (!await access.IsAdministratorAsync(context.User))
-                return Results.Forbid();
             if (!await ValidateFormAsync(context, antiforgery))
                 return Results.BadRequest("Invalid or expired form token. Reload the editor.");
 
@@ -108,6 +107,8 @@ public static class CalendarEventEndpoints
                 .FirstOrDefaultAsync(e => e.Id == id && e.GroupId == 1);
             if (ev is null)
                 return Results.NotFound();
+            if (!await access.CanManageEventAsync(context.User, ev))
+                return Results.Forbid();
 
             // Retain the associated group discussions and resources when an
             // event is deleted, matching the previous interactive editor.

@@ -12,27 +12,24 @@ namespace Fraternitas.Services;
 /// </summary>
 public sealed class ScripturePinService(
     IDbContextFactory<FraternityDb> dbFactory,
-    CatholicBibleService bible,
-    MemberAccessService access)
+    CatholicBibleService bible)
 {
     public async Task<Guid> PinToCalendarAsync(
         ClaimsPrincipal user, string reference, DateTime date, string? reflection = null)
     {
-        if (!await access.IsAdministratorAsync(user))
-            throw new UnauthorizedAccessException("Only current group administrators may pin events to the calendar.");
-
         if (date.Year is < 2000 or > 2100)
             throw new ArgumentException("Please choose a valid calendar date.");
 
         var note = ValidateReflection(reflection);
         var text = await VerifiedVerseAsync(reference);
         await using var db = await dbFactory.CreateDbContextAsync();
-        _ = await RequireMemberAsync(db, user);
+        var userId = await RequireMemberAsync(db, user);
 
         var day = date.Date;
         var pin = new CalendarEvent
         {
             GroupId = 1,
+            CreatedByUserId = userId,
             Category = "Scripture",
             Title = $"📖 {reference}",
             Scripture = reference,
@@ -119,7 +116,7 @@ public sealed class ScripturePinService(
     private static async Task<string> RequireMemberAsync(FraternityDb db, ClaimsPrincipal user)
     {
         var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(userId)
+        if (user.Identity?.IsAuthenticated != true || string.IsNullOrWhiteSpace(userId)
             || !await db.Users.AnyAsync(member => member.Id == userId && member.GroupId == 1))
             throw new UnauthorizedAccessException("Sign in with a Fraternitas group account.");
 

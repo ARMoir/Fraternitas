@@ -9,9 +9,8 @@ public sealed record MemberAccessRow(
     string Id, string DisplayName, string Email, bool IsAdmin, bool IsMemberOnly);
 
 /// <summary>
-/// Admin is the default for every group member. An explicit "Member only"
-/// decision is persisted as an ASP.NET Core Identity user claim, so the
-/// default-role reconciliation cannot silently undo a downgrade.
+/// Member is the default. Preserve existing administrator roles and explicit
+/// Member-only claims; startup must never grant administrator access.
 /// No schema migration is required for existing SQLite databases.
 /// </summary>
 public sealed class MemberAccessService(IServiceScopeFactory scopes)
@@ -31,9 +30,29 @@ public sealed class MemberAccessService(IServiceScopeFactory scopes)
             result.Add(new MemberAccessRow(
                 member.Id, member.DisplayName, member.Email ?? "",
                 await users.IsInRoleAsync(member, "Admin"),
+                !await users.IsInRoleAsync(member, "Admin") ||
                 claims.Any(c => c.Type == MemberOnlyClaimType && c.Value == "true")));
         }
         return result;
+    }
+
+    public async Task<bool> IsGroupMemberAsync(ClaimsPrincipal principal)
+    {
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (principal.Identity?.IsAuthenticated != true || string.IsNullOrWhiteSpace(userId)) return false;
+        using var scope = scopes.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<Member>>();
+        var user = await users.FindByIdAsync(userId);
+        return user is not null && user.GroupId == 1;
+    }
+
+    public async Task<bool> CanManageEventAsync(ClaimsPrincipal principal, CalendarEvent ev)
+    {
+        if (ev.GroupId != 1) return false;
+        if (await IsAdministratorAsync(principal)) return true;
+        return ev.CreatedByUserId is not null
+            && ev.CreatedByUserId == principal.FindFirstValue(ClaimTypes.NameIdentifier)
+            && await IsGroupMemberAsync(principal);
     }
 
     public async Task<bool> IsAdministratorAsync(ClaimsPrincipal principal)
@@ -121,7 +140,6 @@ public sealed class MemberAccessService(IServiceScopeFactory scopes)
         var users = scope.ServiceProvider.GetRequiredService<UserManager<Member>>();
         var members = await users.Users.Where(u => u.GroupId == 1).ToListAsync();
 
-        int promoted = 0;
         foreach (var member in members)
         {
             if (!await users.IsInRoleAsync(member, "Member"))
@@ -136,16 +154,8 @@ public sealed class MemberAccessService(IServiceScopeFactory scopes)
                 RequireSuccess(await users.RemoveFromRoleAsync(member, "Admin"));
                 RequireSuccess(await users.UpdateSecurityStampAsync(member));
             }
-            else if (!memberOnly && !isAdmin)
-            {
-                RequireSuccess(await users.AddToRoleAsync(member, "Admin"));
-                RequireSuccess(await users.UpdateSecurityStampAsync(member));
-                promoted++;
-            }
         }
 
-        if (promoted != 0)
-            logger.LogInformation("Granted default Admin access to {Count} existing group members.", promoted);
     }
 
     private static void RequireSuccess(IdentityResult result)
