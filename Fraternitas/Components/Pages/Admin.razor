@@ -61,6 +61,57 @@
     </section>
 </div>
 
+<section class="panel" id="account-requests">
+    <div class="section-head">
+        <h2>Account requests</h2>
+        <span class="muted">@accountRequests.Count requests</span>
+    </div>
+    <p>Review requests to join the group. Approval sends a private, single-use registration link to the applicant.
+        No account exists until the applicant completes registration.</p>
+    @if (ActionStatus == "request-deleted")
+    {
+        <p class="upload-success" role="status">Request deleted and any registration link revoked.</p>
+    }
+    @if (accountRequests.Count == 0)
+    {
+        <p class="muted">No outstanding account requests.</p>
+    }
+    @foreach (var request in accountRequests)
+    {
+        var active = request.ExpiresUtc > DateTime.UtcNow;
+        <div class="member-access-row" @key="request.Id">
+            <div class="member-access-identity">
+                <strong>@request.DisplayName</strong>
+                <small>@request.Email</small>
+                <small>Requested @TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(request.CreatedUtc, DateTimeKind.Utc), GroupClock.Zone).ToString("MMM d, yyyy")</small>
+                @if (!string.IsNullOrWhiteSpace(request.Note))
+                {
+                    <p class="small pre-line">@request.Note</p>
+                }
+                <small>@(active ? "Approved · registration pending" : request.ExpiresUtc.HasValue ? "Link expired" : "Awaiting approval")</small>
+            </div>
+            <div class="member-access-controls">
+                <form method="post" action="/admin/account-requests/approve" data-enhance="false">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="requestId" value="@request.Id" />
+                    <label class="small">Access on registration
+                        <select name="grantAdmin">
+                            <option value="false" selected="@(!request.GrantAdmin)">Member only</option>
+                            <option value="true" selected="@request.GrantAdmin">Administrator</option>
+                        </select>
+                    </label>
+                    <button type="submit" class="action compact">@(active ? "Resend registration link" : "Approve & email registration link")</button>
+                </form>
+                <form method="post" action="/admin/account-requests/delete" data-enhance="false">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="requestId" value="@request.Id" />
+                    <button type="submit" class="danger-button">Delete request</button>
+                </form>
+            </div>
+        </div>
+    }
+</section>
+
 <section class="panel">
     <div class="section-head">
         <div>
@@ -152,6 +203,7 @@
     public string? ActionStatus { get; set; }
 
     private List<Invitation> activeInvites = [];
+    private List<AccountRequest> accountRequests = [];
     private int memberCount;
     private int eventCount;
     private int outstandingInvites;
@@ -161,6 +213,8 @@
     protected override async Task OnInitializedAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
+        accountRequests = await db.AccountRequests.AsNoTracking()
+            .OrderBy(r => r.CreatedUtc).ToListAsync();
         memberCount = await db.Users.CountAsync(u => u.GroupId == 1);
         eventCount = await db.CalendarEvents.CountAsync(e => e.GroupId == 1);
         activeInvites = await db.Invitations.AsNoTracking()
