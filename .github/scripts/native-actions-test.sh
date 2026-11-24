@@ -194,3 +194,16 @@ grep -q 'Request password reset' "$RUNNER_TEMP/recovery-request.html"
 curl -sSf -b "$cookies" "$base/admin" -o "$RUNNER_TEMP/recovery-admin.html"
 grep -q 'action="/admin/members/password-reset"' "$RUNNER_TEMP/recovery-admin.html"
 echo "Forgot-password and administrator recovery controls rendered"
+
+# Admin-only Resend test-send must show a clear unconfigured state in CI.
+curl -sSf -b "$cookies" "$base/admin" -o "$RUNNER_TEMP/email-test-admin.html"
+grep -q 'action="/admin/email/test"' "$RUNNER_TEMP/email-test-admin.html"
+grep -q 'value="alex@moir.pw"' "$RUNNER_TEMP/email-test-admin.html"
+email_csrf=$(token_for_form "$RUNNER_TEMP/email-test-admin.html" "/admin/email/test")
+curl -sSf -b "$cookies" \
+  --data-urlencode "__RequestVerificationToken=$email_csrf" \
+  --data-urlencode "recipient=alex@moir.pw" \
+  "$base/admin/email/test" -o "$RUNNER_TEMP/email-test-result.html"
+grep -q 'Test email not sent' "$RUNNER_TEMP/email-test-result.html"
+grep -q "RESEND_API_KEY" "$RUNNER_TEMP/email-test-result.html"
+echo "Resend test UI and missing-key handling verified"
