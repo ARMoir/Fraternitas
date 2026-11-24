@@ -1,4 +1,6 @@
 using System.Text;
+using System.Net;
+using Microsoft.AspNetCore.HttpOverrides;
 using Fraternitas.Components;
 using Fraternitas.Data;
 using Fraternitas.Services;
@@ -49,9 +51,29 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.AccessDeniedPath = "/account/login";
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Lax;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; // HTTPS is required for public deployment.
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
     options.ExpireTimeSpan = TimeSpan.FromDays(14);
 });
+
+// The local Cloudflare connector terminates the tunnel and forwards the
+// original visitor scheme. Never accept forwarded scheme from remote peers.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+    options.KnownProxies.Add(IPAddress.Loopback);
+    options.KnownProxies.Add(IPAddress.IPv6Loopback);
+});
+builder.Services.AddAntiforgery(options =>
+{
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+});
+if (!builder.Environment.IsDevelopment())
+    builder.Services.AddHttpsRedirection(options => options.HttpsPort = 443);
 
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<FraternitasEmailService>(client =>
@@ -162,8 +184,11 @@ if (args.Contains("verify-scripture", StringComparer.OrdinalIgnoreCase))
 }
 
 
+// Process only the trusted local proxy's scheme before HTTPS redirection,
+ // HSTS, authentication, antiforgery, and link generation.
 if (!app.Environment.IsDevelopment())
 {
+    app.UseForwardedHeaders();
     app.UseExceptionHandler("/error");
     app.UseHsts();
 }
