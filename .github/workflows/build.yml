@@ -395,7 +395,7 @@ jobs:
           curl -sS -f -b "$RUNNER_TEMP/cookies.txt" \
             "http://127.0.0.1:5088/events/$event_id/edit" -o "$RUNNER_TEMP/event-editor.html"
           grep -q "action=\"/calendar/events/$event_id/update\"" "$RUNNER_TEMP/event-editor.html"
-          edit_csrf=$(python3 - "$RUNNER_TEMP/event-editor.html" <<'PY'
+          edit_csrf=$(python3 - "$RUNNER_TEMP/calendar-edit-modal.html" <<'PY'
           import sys
           from html.parser import HTMLParser
           class TokenParser(HTMLParser):
@@ -413,17 +413,26 @@ jobs:
           print(parser.token)
           PY
           )
+          today_eastern=$(TZ=America/New_York date +%F)
           curl -sS -D "$RUNNER_TEMP/edit-event-headers" -o /dev/null \
             -b "$RUNNER_TEMP/cookies.txt" \
             --data-urlencode "__RequestVerificationToken=$edit_csrf" \
+            --data-urlencode "calendarModal=true" \
+            --data-urlencode "calendarView=day" \
+            --data-urlencode "calendarDate=2026-11-23" \
             --data-urlencode "title=Updated Advent event smoke test" \
-            --data-urlencode "startLocal=2026-11-23T15:00" \
-            --data-urlencode "endLocal=2026-11-23T16:00" \
+            --data-urlencode "startLocal=${today_eastern}T15:00" \
+            --data-urlencode "endLocal=${today_eastern}T16:00" \
             --data-urlencode "category=Meeting" \
             --data-urlencode "description=Updated event details" \
             --data-urlencode "scripture=Luke 1:26-38" \
             "http://127.0.0.1:5088/calendar/events/$event_id/update"
           grep -qE '^HTTP/[^ ]+ 302' "$RUNNER_TEMP/edit-event-headers"
+          grep -Fiq "location: /calendar?view=day&date=2026-11-23#event-$event_hex" "$RUNNER_TEMP/edit-event-headers"
+          curl -sSf -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/" -o "$RUNNER_TEMP/home-after-event-update.html"
+          grep -q 'Updated Advent event smoke test' "$RUNNER_TEMP/home-after-event-update.html"
+          echo "Event edited in the calendar modal appears in the home page summary"
           python3 - "$event_id" <<'PY'
           import os, sqlite3, sys
           con = sqlite3.connect(os.path.join(os.environ["FRATERNITAS_DATA_DIR"], "fraternitas.db"))
@@ -435,8 +444,18 @@ jobs:
             -b "$RUNNER_TEMP/cookies.txt" \
             --data-urlencode "__RequestVerificationToken=$edit_csrf" \
             --data-urlencode "confirmDelete=yes" \
+            --data-urlencode "calendarModal=true" \
+            --data-urlencode "calendarView=day" \
+            --data-urlencode "calendarDate=2026-11-23" \
             "http://127.0.0.1:5088/calendar/events/$event_id/delete"
           grep -qE '^HTTP/[^ ]+ 302' "$RUNNER_TEMP/delete-event-headers"
+          grep -Fiq 'location: /calendar?view=day&date=2026-11-23&event=deleted#calendar-top' "$RUNNER_TEMP/delete-event-headers"
+          curl -sSf -b "$RUNNER_TEMP/cookies.txt" \
+            "http://127.0.0.1:5088/" -o "$RUNNER_TEMP/home-after-event-delete.html"
+          if grep -q 'Updated Advent event smoke test' "$RUNNER_TEMP/home-after-event-delete.html"; then
+            echo "Deleted event still appears on the home page"
+            exit 1
+          fi
           python3 - "$event_id" <<'PY'
           import os, sqlite3, sys
           con = sqlite3.connect(os.path.join(os.environ["FRATERNITAS_DATA_DIR"], "fraternitas.db"))
