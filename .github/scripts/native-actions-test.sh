@@ -349,22 +349,7 @@ curl -sS -D "$RUNNER_TEMP/complete-registration-headers" -o /dev/null \
   --data-urlencode "confirm=CI-only-registration-password" \
   "$base/account/complete-registration"
 tr -d '\r' < "$RUNNER_TEMP/complete-registration-headers" > "$RUNNER_TEMP/registration-normalized-headers"
-grep -qi '^location: /
-python3 - <<'PY'
-import os, sqlite3
-db = sqlite3.connect(os.path.join(os.environ["FRATERNITAS_DATA_DIR"], "fraternitas.db"))
-uid, confirmed = db.execute("SELECT Id, EmailConfirmed FROM AspNetUsers WHERE Email=?", ("ci-applicant@example.invalid",)).fetchone()
-assert confirmed == 1
-roles = db.execute("SELECT r.Name FROM AspNetUserRoles ur JOIN AspNetRoles r ON r.Id=ur.RoleId WHERE ur.UserId=?", (uid,)).fetchall()
-assert roles == [("Member",)], roles
-assert db.execute("SELECT 1 FROM AspNetUserClaims WHERE UserId=? AND ClaimType='Fraternitas.MemberOnly' AND ClaimValue='true'", (uid,)).fetchone()
-assert not db.execute("SELECT 1 FROM AccountRequests WHERE Email=?", ("ci-applicant@example.invalid",)).fetchone()
-PY
-curl -sSf -b "$RUNNER_TEMP/request.cookies" \
-  "$base/account/complete-registration?code=$registration_code" -o "$RUNNER_TEMP/registration-used.html"
-grep -q 'Registration link unavailable' "$RUNNER_TEMP/registration-used.html"
-echo "Approved member registration, access selection and single-use link verified"
- "$RUNNER_TEMP/registration-normalized-headers"
+grep -qi '^location: /$' "$RUNNER_TEMP/registration-normalized-headers"
 python3 - <<'PY'
 import os, sqlite3
 db = sqlite3.connect(os.path.join(os.environ["FRATERNITAS_DATA_DIR"], "fraternitas.db"))
