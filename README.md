@@ -20,7 +20,7 @@ Built with **.NET 10 Blazor Web App (Interactive Server)**, **Radzen Scheduler**
 - Administrator page for reusable seven-day group invites, revocation and group counts
 - Responsive layout usable on desktop and mobile
 
-**Not yet implemented:** outbound email/SMS/push reminders, recurring event rules, calendar subscription feed, RSVP tracking, moderation/deletion interfaces for uploaded files and discussions, multi-group membership, automated password reset email, and production database migrations. These are follow-up features, not implied by the starter.
+**Not yet implemented:** outbound email/SMS/push reminders, recurring event rules, calendar subscription feed, RSVP tracking, moderation/deletion interfaces for uploaded files and discussions, multi-group membership, and production database migrations. These are follow-up features, not implied by the starter.
 
 ## Run locally
 
@@ -59,18 +59,31 @@ After configuring environment variables and restarting Fraternitas, open
 the message and the Resend message ID. Check the inbox, spam folder, and Resend
 dashboard for actual delivery. No mail is sent merely by visiting a page.
 
-The email sender does not modify SQLite or account records; your existing users,
-calendar, documents, and discussions are unchanged. The current forgotten-password
-workflow still uses administrator-provided links; outbound email is first being
-validated with a manual test before enabling automatic recovery and invitations.
+The sender uses the existing SQLite database without schema changes. Existing users,
+calendar events, documents, and discussions remain intact.
 
-### Forgot password (no mail server required)
+### Forgot password (automatic email)
 
-The sign-in screen has **Forgot your password?**. Members can enter their registered email address to request help. The page always gives the same confirmation (it does not disclose whether the account exists); the request appears as **Reset requested** beside their name under **Admin → Member access**.
+On the sign-in page, select **Forgot your password?** and enter the registered email address.
+When Resend is configured, Fraternitas emails the member a private reset link. The response
+does not reveal whether an account exists. Automatic requests are limited to one email
+attempt per member every ten minutes.
 
-An authorized administrator selects **Reset password** beside that member and copies the private link displayed once. Send it directly to the member. The link expires after **two hours**, is **single use**, and generating a replacement invalidates the old one. The member opens it, chooses a new password, and signs in. Password reset clears login lockout; it does not delete or recreate the account. Nobody can reset someone else's password merely by knowing their email address.
+Administrators can also select **Reset password** next to any member under **Admin → Member access**.
+The app attempts to email the link and displays a copyable link as a fallback, even if email
+is unconfigured or rejected. The administrator can always generate another link.
+The link expires after two hours, is single-use, and a replacement invalidates the previous link.
+Opening it does not change the password until the member chooses a new one.
 
-The request and hashed recovery token are stored in ASP.NET Identity's existing `AspNetUserTokens` table, so **no schema migration or new service** is necessary. Keep your current SQLite database/data directory when deploying. The link is not emailed automatically. If the only administrator loses access, use the local `admin-setup` recovery command below.
+The reset request, cooldown, and hashed link use the existing `AspNetUserTokens` table.
+No database migration is required. If no email arrives, check spam and ask an administrator
+for help. Resend's shared test sender is limited to the Resend account email; verify your
+sending domain before offering password recovery to every member. The user must have access
+to their registered email address. Existing accounts were created without independent email
+verification, so administrators should confirm any incorrect or outdated member addresses.
+
+If the only administrator loses access and email is unavailable, use the local
+`admin-setup` recovery command below.
 
 ### Recover access to an existing database
 
