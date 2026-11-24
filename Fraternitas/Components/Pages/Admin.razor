@@ -62,6 +62,27 @@
 </div>
 
 <section class="panel">
+    <div class="section-head">
+        <div>
+            <div class="eyebrow">EMAIL DELIVERY</div>
+            <h2>Send test email</h2>
+        </div>
+        <span class="muted small">Resend</span>
+    </div>
+    <p>Send a real test message to confirm that Fraternitas can deliver email through Resend.</p>
+    <p class="muted small">The Resend API key is read from the Pi's <code>RESEND_API_KEY</code> environment setting.
+       Never paste an API key into a web form or commit it to GitHub.
+       For a sender other than Resend's testing address, verify your domain in Resend first.</p>
+    <form method="post" action="/admin/email/test" data-enhance="false">
+        <AntiforgeryToken />
+        <label>Test recipient
+            <input type="email" name="recipient" value="alex@moir.pw" maxlength="254" required />
+        </label>
+        <button class="action" type="submit">Send test email</button>
+    </form>
+</section>
+
+<section class="panel">
     <div class="section-head"><h2>Member access</h2><span class="muted">@members.Count accounts</span></div>
     <p>All group members are <strong>Administrators by default</strong>. You can explicitly switch a person
        to <strong>Member only</strong> if they should not manage the calendar, invitations, or other members.</p>
