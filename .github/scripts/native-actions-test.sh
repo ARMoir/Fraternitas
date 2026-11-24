@@ -207,3 +207,34 @@ curl -sSf -b "$cookies" \
 grep -q 'Test email not sent' "$RUNNER_TEMP/email-test-result.html"
 grep -q "RESEND_API_KEY" "$RUNNER_TEMP/email-test-result.html"
 echo "Resend test UI and missing-key handling verified"
+
+
+# Forgot password remains usable when a deployment has not configured Resend.
+# Use only the disposable CI database and its test account.
+curl -sSf -c "$RUNNER_TEMP/forgot.cookies" \
+  "$base/account/forgot-password" -o "$RUNNER_TEMP/forgot-form.html"
+forgot_csrf=$(token_for_form "$RUNNER_TEMP/forgot-form.html" "/account/forgot-password")
+curl -sSf -b "$RUNNER_TEMP/forgot.cookies" -c "$RUNNER_TEMP/forgot.cookies" \
+  --data-urlencode "__RequestVerificationToken=$forgot_csrf" \
+  --data-urlencode "email=$FRATERNITAS_ADMIN_EMAIL" \
+  "$base/account/forgot-password" -o "$RUNNER_TEMP/forgot-response.html"
+grep -q 'Request received' "$RUNNER_TEMP/forgot-response.html"
+grep -q 'password reset link will be emailed' "$RUNNER_TEMP/forgot-response.html"
+curl -sSf -b "$cookies" "$base/admin" -o "$RUNNER_TEMP/reset-admin.html"
+grep -q 'Reset requested' "$RUNNER_TEMP/reset-admin.html"
+reset_admin_csrf=$(token_for_form "$RUNNER_TEMP/reset-admin.html" "/admin/members/password-reset")
+test_user=$(python3 - <<'PY'
+import os, sqlite3
+db = sqlite3.connect(os.path.join(os.environ["FRATERNITAS_DATA_DIR"], "fraternitas.db"))
+row = db.execute("SELECT Id FROM AspNetUsers WHERE Email=?", (os.environ["FRATERNITAS_ADMIN_EMAIL"],)).fetchone()
+assert row, "CI test member missing"
+print(row[0])
+PY
+)
+curl -sSf -b "$cookies" \
+  --data-urlencode "__RequestVerificationToken=$reset_admin_csrf" \
+  --data-urlencode "userId=$test_user" \
+  "$base/admin/members/password-reset" -o "$RUNNER_TEMP/reset-fallback.html"
+grep -q 'Email delivery is not configured' "$RUNNER_TEMP/reset-fallback.html"
+grep -q 'id="reset-url"' "$RUNNER_TEMP/reset-fallback.html"
+echo "Forgot password requests and administrator link fallback verified with no Resend key"
