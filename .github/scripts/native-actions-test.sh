@@ -303,3 +303,63 @@ grep -qi 'location: /admin?status=request-deleted' "$RUNNER_TEMP/request-delete-
 curl -sSf -b "$RUNNER_TEMP/request.cookies" "$base$registration_path" -o "$RUNNER_TEMP/revoked-registration.html"
 grep -q 'Registration link unavailable' "$RUNNER_TEMP/revoked-registration.html"
 echo "Account request deduplication, approval, email fallback, and revocation verified"
+
+
+# Reapply and finish a fresh approved registration using the local test server.
+curl -sSf -b "$RUNNER_TEMP/request.cookies" -c "$RUNNER_TEMP/request.cookies" \
+  "$base/account/request" -o "$RUNNER_TEMP/account-request-again.html"
+request_csrf=$(token_for_form "$RUNNER_TEMP/account-request-again.html" "/account/request")
+curl -sSf -b "$RUNNER_TEMP/request.cookies" \
+  --data-urlencode "__RequestVerificationToken=$request_csrf" \
+  --data-urlencode "name=CI Applicant" --data-urlencode "email=ci-applicant@example.invalid" \
+  "$base/account/request" -o "$RUNNER_TEMP/request-again.html"
+request_id=$(python3 - <<'PY'
+import os, sqlite3
+db = sqlite3.connect(os.path.join(os.environ["FRATERNITAS_DATA_DIR"], "fraternitas.db"))
+print(db.execute("SELECT Id FROM AccountRequests WHERE Email=?", ("ci-applicant@example.invalid",)).fetchone()[0])
+PY
+)
+curl -sSf -b "$cookies" "$base/admin" -o "$RUNNER_TEMP/request-admin-again.html"
+approve_csrf=$(token_for_form "$RUNNER_TEMP/request-admin-again.html" "/admin/account-requests/approve")
+curl -sSf -b "$cookies" \
+  --data-urlencode "__RequestVerificationToken=$approve_csrf" \
+  --data-urlencode "requestId=$request_id" --data-urlencode "grantAdmin=false" \
+  "$base/admin/account-requests/approve" -o "$RUNNER_TEMP/request-approved-again.html"
+registration_code=$(python3 - "$RUNNER_TEMP/request-approved-again.html" <<'PY'
+import sys
+from html.parser import HTMLParser
+from urllib.parse import urlsplit, parse_qs
+class RegistrationLink(HTMLParser):
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "input" and a.get("id") == "registration-url":
+            print(parse_qs(urlsplit(a["value"]).query)["code"][0])
+RegistrationLink().feed(open(sys.argv[1], encoding="utf-8").read())
+PY
+)
+test -n "$registration_code"
+curl -sSf -b "$RUNNER_TEMP/request.cookies" -c "$RUNNER_TEMP/request.cookies" \
+  "$base/account/complete-registration?code=$registration_code" -o "$RUNNER_TEMP/complete-registration.html"
+registration_csrf=$(token_for_form "$RUNNER_TEMP/complete-registration.html" "/account/complete-registration")
+curl -sS -D "$RUNNER_TEMP/complete-registration-headers" -o /dev/null \
+  -b "$RUNNER_TEMP/request.cookies" -c "$RUNNER_TEMP/request.cookies" \
+  --data-urlencode "__RequestVerificationToken=$registration_csrf" \
+  --data-urlencode "code=$registration_code" --data-urlencode "name=CI Applicant" \
+  --data-urlencode "password=CI-only-registration-password" \
+  --data-urlencode "confirm=CI-only-registration-password" \
+  "$base/account/complete-registration"
+grep -qiE '^location: /\r?$' "$RUNNER_TEMP/complete-registration-headers"
+python3 - <<'PY'
+import os, sqlite3
+db = sqlite3.connect(os.path.join(os.environ["FRATERNITAS_DATA_DIR"], "fraternitas.db"))
+uid, confirmed = db.execute("SELECT Id, EmailConfirmed FROM AspNetUsers WHERE Email=?", ("ci-applicant@example.invalid",)).fetchone()
+assert confirmed == 1
+roles = db.execute("SELECT r.Name FROM AspNetUserRoles ur JOIN AspNetRoles r ON r.Id=ur.RoleId WHERE ur.UserId=?", (uid,)).fetchall()
+assert roles == [("Member",)], roles
+assert db.execute("SELECT 1 FROM AspNetUserClaims WHERE UserId=? AND ClaimType='Fraternitas.MemberOnly' AND ClaimValue='true'", (uid,)).fetchone()
+assert not db.execute("SELECT 1 FROM AccountRequests WHERE Email=?", ("ci-applicant@example.invalid",)).fetchone()
+PY
+curl -sSf -b "$RUNNER_TEMP/request.cookies" \
+  "$base/account/complete-registration?code=$registration_code" -o "$RUNNER_TEMP/registration-used.html"
+grep -q 'Registration link unavailable' "$RUNNER_TEMP/registration-used.html"
+echo "Approved member registration, access selection and single-use link verified"
