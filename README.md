@@ -62,6 +62,25 @@ dashboard for actual delivery. No mail is sent merely by visiting a page.
 The sender uses the existing SQLite database without schema changes. Existing users,
 calendar events, documents, and discussions remain intact.
 
+### Request an account
+
+On the sign-in page, choose **Request an account** and enter a name, email address,
+and optional note. Requests are stored separately from Identity accounts, so an
+applicant cannot sign in or access private content before completing an approved registration.
+
+Under **Admin → Account requests**, administrators can choose **Member only** (the
+default for public requests) or **Administrator**, then **Approve & email registration link**.
+The applicant receives a single-use, seven-day link through Resend, using the configured
+public URL. The applicant chooses their own password when completing registration;
+the approved email address cannot be changed on that form. A copyable link is available
+if Resend is unavailable. Resending replaces the old link, and **Delete request**
+removes the application and revokes its link without deleting any existing member.
+
+Existing shared group invitations retain their previous behavior and default Administrator
+access. The new AccountRequests table is added automatically on startup using an
+idempotent SQLite upgrade; existing members, calendar events, discussions, and documents
+are preserved. Back up the persistent data directory before deploying as usual.
+
 ### Forgot password (automatic email)
 
 On the sign-in page, select **Forgot your password?** and enter the registered email address.
