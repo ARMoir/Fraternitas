@@ -73,6 +73,13 @@ builder.Services.Configure<Microsoft.AspNetCore.Identity.SecurityStampValidatorO
     options.ValidationInterval = TimeSpan.FromMinutes(1));
 builder.Services.AddAuthorization();
 
+// Offline integration test: no real API key or email delivery.
+if (args.Contains("verify-password-reset-email", StringComparer.OrdinalIgnoreCase))
+{
+    await PasswordResetEmailVerifier.VerifyAsync();
+    return;
+}
+
 var app = builder.Build();
 await DatabaseSetup.InitializeAsync(app.Services, app.Logger);
 await MemberAccessService.ReconcileDefaultsAsync(app.Services, app.Logger);
