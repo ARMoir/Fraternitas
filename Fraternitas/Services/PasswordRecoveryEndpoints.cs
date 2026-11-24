@@ -176,20 +176,20 @@ public static class PasswordRecoveryEndpoints
 
             var token = WebUtility.HtmlEncode(antiforgery.GetAndStoreTokens(context).RequestToken ?? "");
             var error = context.Request.Query.ContainsKey("error")
-                ? "<p class='error' role='alert'>Passwords must match and cannot be empty. Try again.</p>"
+                ? "<p class='error' role='alert'>Passwords must match and have at least 6 characters and one number. Try again.</p>"
                 : "";
             return Results.Content(AccountEndpoints.Page("Reset password", $"""
                 <h1>Choose a new password</h1>
-                <p>Set a new password for your Fraternitas account.</p>{error}
+                <p>Set a new password for your Fraternitas account. Use at least 6 characters and one number.</p>{error}
                 <form method="post" action="/account/reset-password">
                   <input type="hidden" name="__RequestVerificationToken" value="{token}">
                   <input type="hidden" name="uid" value="{WebUtility.HtmlEncode(uid)}">
                   <input type="hidden" name="code" value="{WebUtility.HtmlEncode(code)}">
                   <label>New password
-                    <input type="password" name="password" autocomplete="new-password" required>
+                    <input type="password" name="password" autocomplete="new-password" minlength="6" pattern=".*[0-9].*" title="At least 6 characters and one number" required>
                   </label>
                   <label>Confirm new password
-                    <input type="password" name="confirm" autocomplete="new-password" required>
+                    <input type="password" name="confirm" autocomplete="new-password" minlength="6" pattern=".*[0-9].*" title="At least 6 characters and one number" required>
                   </label>
                   <button type="submit">Save new password</button>
                 </form>
@@ -215,7 +215,7 @@ public static class PasswordRecoveryEndpoints
 
             var password = form["password"].ToString();
             var confirm = form["confirm"].ToString();
-            if (string.IsNullOrEmpty(password) || password != confirm)
+            if (!PasswordPolicy.IsValid(password) || password != confirm)
                 return Results.Redirect($"/account/reset-password?uid={Uri.EscapeDataString(uid)}&code={Uri.EscapeDataString(code)}&error=1");
 
             var member = await users.FindByIdAsync(uid);

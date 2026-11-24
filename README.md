@@ -35,7 +35,7 @@ Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 
 1. Open Fraternitas in Visual Studio and press **F5** using the **Fraternitas** launch profile.
 2. The browser automatically opens **/account/setup** if the database contains no users.
-3. Enter your name, email and a **non-empty password**; click **Create administrator**.
+3. Enter your name, email and a **password with at least six characters and one number**; click **Create administrator**.
 4. You are signed in as an Admin. Create member invitations from the **Admin** page.
 
 **No environment variables, preset credentials or database deletion are required on first launch.**
@@ -172,7 +172,7 @@ To invite members, sign in as administrator, open **Admin**, create **one group 
 - Both invitation and approved request registrations create ordinary **Members**. Administrators can promote members after registration. All members can view, create and pin calendar events, edit or delete their own events, and participate in group activities. Administrators may manage any event, invitations, account requests and roles. **Share reusable invitations carefully.**
 - In **Admin → Member access**, select **Set member only** to downgrade an account, or **Make administrator** to restore it. The app prevents downgrading the last administrator. Role changes take effect when the user signs in again (and sensitive edit actions check the current database role).
 - Startup no longer promotes members automatically. Existing administrators retain their access, and explicit Member-only exceptions are respected. A nullable `CreatedByUserId` calendar column is added automatically to existing SQLite databases; existing and seeded events without an owner remain administrator-managed. Back up the data directory before deploying.
-- Passwords must be non-empty; length/complexity restrictions were intentionally removed for ease of use. Encourage strong unique passwords because group discussions and uploaded documents remain private. Passwords are hashed using ASP.NET Core Identity. Authentication requests, first-run setup and sign-out use antiforgery validation.
+- New passwords must have at least six characters and one number (0–9). Uppercase letters, lowercase letters and symbols are not required. Existing passwords remain valid until changed; the new rule applies to registrations, initial setup and password resets. Encourage strong unique passwords because group discussions and uploaded documents remain private. Passwords are hashed using ASP.NET Core Identity. Authentication requests, first-run setup and sign-out use antiforgery validation.
 - The admin web setup is available only from loopback in Development before the first user exists; existing admin recovery requires local terminal access.
 - Shared invite URLs are secret, reusable by multiple distinct members, expire after seven days and may be revoked. Approved public requests instead use a single-use link tied to the approved address. Older/shared-invite accounts do not have independent email verification.
 - Uploads are stored outside `wwwroot`, with randomized storage names, extension allowlisting and a 10 MB limit. This is not an antivirus or content-scanning service.
@@ -240,13 +240,13 @@ dotnet restore Fraternitas/Fraternitas.csproj
 dotnet build Fraternitas/Fraternitas.csproj -c Release --no-restore
 ```
 
-[GitHub Actions](https://github.com/ARMoir/Fraternitas/actions/workflows/build.yml) runs on pushes to `main` and pull requests. It verifies the Catholic canon and Bible browser using the live HelloAO API, Scripture pin persistence, role defaults and exceptions, per-user preferences, mocked Resend reset emails, and native HTTP workflows for sign-in, private routes, calendar modals and home page synchronization, document uploads, password recovery fallback and account request approval/registration/revocation. A separate smoke test verifies first-run administrator setup, ordinary-member invitation registrations, and calendar creation, owner/admin editing and deletion, cross-member denial and protection of legacy events. Tests use isolated SQLite data and do not require production credentials or send real email. The live Scripture check requires network access to HelloAO.
+[GitHub Actions](https://github.com/ARMoir/Fraternitas/actions/workflows/build.yml) runs on pushes to `main` and pull requests. It verifies the new password policy and legacy password compatibility, the Catholic canon and Bible browser using the live HelloAO API, Scripture pin persistence, role defaults and exceptions, per-user preferences, mocked Resend reset emails, and native HTTP workflows for sign-in, private routes, calendar modals and home page synchronization, document uploads, password recovery fallback and account request approval/registration/revocation. A separate smoke test verifies first-run administrator setup, ordinary-member invitation registrations, and calendar creation, owner/admin editing and deletion, cross-member denial and protection of legacy events. Tests use isolated SQLite data and do not require production credentials or send real email. The live Scripture check requires network access to HelloAO.
 
 For local verification, use a disposable data directory, not your production database:
 
 ```bash
 export FRATERNITAS_DATA_DIR="$(mktemp -d)"
-for check in verify-scripture verify-scripture-pins verify-member-access verify-user-preferences verify-password-reset-email; do
+for check in verify-scripture verify-scripture-pins verify-member-access verify-user-preferences verify-password-reset-email verify-password-policy; do
   dotnet run --no-launch-profile --project Fraternitas/Fraternitas.csproj -- "$check" || break
 done
 ```

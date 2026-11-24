@@ -21,6 +21,10 @@ jobs:
         run: dotnet restore Fraternitas/Fraternitas.csproj
       - name: Build
         run: dotnet build Fraternitas/Fraternitas.csproj --configuration Release --no-restore
+      - name: Verify new password rules and existing password compatibility
+        run: |
+          export FRATERNITAS_DATA_DIR="$RUNNER_TEMP/password-policy-test"
+          dotnet run --no-build --no-launch-profile -c Release --project Fraternitas/Fraternitas.csproj -- verify-password-policy
       - name: Verify password reset email using mock Resend
         run: dotnet run --no-build --no-launch-profile -c Release --project Fraternitas/Fraternitas.csproj -- verify-password-reset-email
       - name: Verify Douay-Rheims Catholic canon and all five live readings
@@ -498,7 +502,7 @@ jobs:
           curl -sS -D "$RUNNER_TEMP/wizard-closed" -o /dev/null "http://127.0.0.1:5089/account/setup"
           grep -qi 'location: /account/login' "$RUNNER_TEMP/wizard-closed"
           echo 'First-run setup and one-time lockout passed'
-          # A single invitation must work for multiple distinct users, even with short passwords.
+          # A single invitation must work for multiple distinct users, using the minimum valid password.
           export TEST_INVITE=$(python3 - <<'PY'
           import os, sqlite3, secrets, hashlib, uuid, datetime
           token = secrets.token_urlsafe(32)
@@ -519,7 +523,7 @@ jobs:
               -b "$RUNNER_TEMP/$member.cookies" -c "$RUNNER_TEMP/$member.cookies" \
               --data-urlencode "__RequestVerificationToken=$csrf" \
               --data-urlencode "code=$TEST_INVITE" --data-urlencode "name=$member Member" \
-              --data-urlencode "email=$member@example.invalid" --data-urlencode "password=xy" \
+              --data-urlencode "email=$member@example.invalid" --data-urlencode "password=abcde1" \
               "http://127.0.0.1:5089/account/join"
             grep -qi 'location: /' "$RUNNER_TEMP/$member.join.headers"
             curl -sS --fail -b "$RUNNER_TEMP/$member.cookies" \
@@ -552,7 +556,7 @@ jobs:
             -b "$RUNNER_TEMP/retry.cookies" -c "$RUNNER_TEMP/retry.cookies" \
             --data-urlencode "__RequestVerificationToken=$retry_csrf" \
             --data-urlencode "code=$TEST_INVITE" --data-urlencode "name=Already Registered" \
-            --data-urlencode "email=first@example.invalid" --data-urlencode "password=xy" \
+            --data-urlencode "email=first@example.invalid" --data-urlencode "password=abcde1" \
             "http://127.0.0.1:5089/account/join"
           retry_url=$(python3 - "$RUNNER_TEMP/retry.headers" "$TEST_INVITE" <<'PY'
           import sys

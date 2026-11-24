@@ -39,13 +39,13 @@ public static class AdminSetup
             return false;
         }
 
-        Console.Write("New password: ");
+        Console.Write("New password (at least 6 characters and one number): ");
         var password = ReadSecret();
         Console.Write("Confirm password: ");
         var confirmation = ReadSecret();
-        if (password.Length == 0 || password != confirmation)
+        if (!PasswordPolicy.IsValid(password) || password != confirmation)
         {
-            Console.Error.WriteLine("Passwords must match and cannot be empty.");
+            Console.Error.WriteLine("Passwords must match and have at least 6 characters and one number.");
             return false;
         }
 

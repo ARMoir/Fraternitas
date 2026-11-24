@@ -28,7 +28,7 @@ public static class AccountEndpoints
 
             var token = WebUtility.HtmlEncode(csrf.GetAndStoreTokens(ctx).RequestToken ?? "");
             var error = ctx.Request.Query.ContainsKey("error")
-                ? "<p class='error'>Check your email and make sure both non-empty passwords match. Try again.</p>"
+                ? "<p class='error'>Check your email and choose matching passwords with at least 6 characters and one number. Try again.</p>"
                 : "";
             var form = $"""
                 <h1>Set up Fraternitas</h1>
@@ -37,10 +37,11 @@ public static class AccountEndpoints
                   <input type="hidden" name="__RequestVerificationToken" value="{token}">
                   <label>Your name<input name="name" maxlength="100" autocomplete="name" required></label>
                   <label>Email<input name="email" type="email" maxlength="256" autocomplete="username" required></label>
+                  <p class="muted small">Use at least 6 characters and one number.</p>
                   <label>Password<input name="password" type="password"
-                    autocomplete="new-password" required></label>
+                    autocomplete="new-password" minlength="6" pattern=".*[0-9].*" title="At least 6 characters and one number" required></label>
                   <label>Confirm password<input name="confirm" type="password"
-                    autocomplete="new-password" required></label>
+                    autocomplete="new-password" minlength="6" pattern=".*[0-9].*" title="At least 6 characters and one number" required></label>
                   <button type="submit">Create administrator</button>
                 </form>
                 <p class="muted">Only available on localhost in Development mode. No preset password is used.</p>
@@ -68,7 +69,7 @@ public static class AccountEndpoints
                 var password = form["password"].ToString();
                 var confirmation = form["confirm"].ToString();
                 if (!AdminSetup.ValidEmail(email) || name.Length is < 1 or > 100
-                    || string.IsNullOrEmpty(password) || password != confirmation)
+                    || !PasswordPolicy.IsValid(password) || password != confirmation)
                     return Results.Redirect("/account/setup?error=1");
 
                 var member = new Member
@@ -149,7 +150,7 @@ public static class AccountEndpoints
             var code = WebUtility.HtmlEncode(rawCode);
             var errorMessage = ctx.Request.Query["error"].ToString() switch
             {
-                "details" => "Enter your name, a valid email address and a non-empty password.",
+                "details" => "Enter your name, a valid email address and a password with at least 6 characters and one number.",
                 "invite" => "This invitation is invalid, expired or revoked. Ask an administrator for a new link.",
                 "account" => "An account could not be created with those details. If you already registered, sign in instead.",
                 "1" => "Registration could not be completed. Check your details and invitation code.",
@@ -180,7 +181,8 @@ public static class AccountEndpoints
                   <label>Invitation code<input name="code" value="{code}" required></label>
                   <label>Your name<input name="name" maxlength="100" required></label>
                   <label>Email<input type="email" name="email" autocomplete="username" required></label>
-                  <label>Password<input type="password" name="password" autocomplete="new-password" required></label>
+                  <p class="muted small">Use at least 6 characters and one number.</p>
+                  <label>Password<input type="password" name="password" autocomplete="new-password" minlength="6" pattern=".*[0-9].*" title="At least 6 characters and one number" required></label>
                   <button type="submit">Create account</button>
                 </form>
                 <p class="muted">Already have an account? <a href="/account/login">Sign in</a>.</p>
@@ -200,7 +202,7 @@ public static class AccountEndpoints
 
             if (code.Length is < 20 or > 256)
                 return Results.Redirect(JoinRetryUrl(code, "invite"));
-            if (name.Length is < 1 or > 100 || !AdminSetup.ValidEmail(email) || string.IsNullOrEmpty(password))
+            if (name.Length is < 1 or > 100 || !AdminSetup.ValidEmail(email) || !PasswordPolicy.IsValid(password))
                 return Results.Redirect(JoinRetryUrl(code, "details"));
 
             var hash = Hash(code);

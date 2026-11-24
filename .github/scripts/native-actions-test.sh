@@ -345,8 +345,8 @@ curl -sS -D "$RUNNER_TEMP/complete-registration-headers" -o /dev/null \
   -b "$RUNNER_TEMP/request.cookies" -c "$RUNNER_TEMP/request.cookies" \
   --data-urlencode "__RequestVerificationToken=$registration_csrf" \
   --data-urlencode "code=$registration_code" --data-urlencode "name=CI Applicant" \
-  --data-urlencode "password=CI-only-registration-password" \
-  --data-urlencode "confirm=CI-only-registration-password" \
+  --data-urlencode "password=CI-only-registration-password1" \
+  --data-urlencode "confirm=CI-only-registration-password1" \
   "$base/account/complete-registration"
 tr -d '\r' < "$RUNNER_TEMP/complete-registration-headers" > "$RUNNER_TEMP/registration-normalized-headers"
 grep -qi '^location: /$' "$RUNNER_TEMP/registration-normalized-headers"

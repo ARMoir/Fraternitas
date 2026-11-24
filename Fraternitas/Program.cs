@@ -29,11 +29,11 @@ builder.Services.AddDbContextFactory<FraternityDb>(options =>
     options.UseSqlite($"Data Source={Path.Combine(dataPath, "fraternitas.db")}"));
 builder.Services.AddIdentity<Member, IdentityRole>(options =>
 {
-    // Allow any non-empty password; no complexity or minimum-length rules.
-    options.Password.RequiredLength = 1;
+    // New passwords: six characters and at least one digit; existing hashes remain valid.
+    options.Password.RequiredLength = PasswordPolicy.MinimumLength;
     options.Password.RequiredUniqueChars = 1;
     options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequireDigit = false;
+    options.Password.RequireDigit = true;
     options.Password.RequireUppercase = false;
     options.Password.RequireLowercase = false;
     options.User.RequireUniqueEmail = true;
@@ -92,11 +92,18 @@ if (args.Contains("admin-setup", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
-// Integration test: default Admin access and persistent explicit Member-only overrides.
+// Integration test: Member defaults, preserved administrators, and explicit role overrides.
 // Run with a disposable FRATERNITAS_DATA_DIR.
 if (args.Contains("verify-member-access", StringComparer.OrdinalIgnoreCase))
 {
     await MemberAccessVerifier.VerifyAsync(app.Services, app.Logger);
+    return;
+}
+
+// Password-policy regression check with disposable SQLite.
+if (args.Contains("verify-password-policy", StringComparer.OrdinalIgnoreCase))
+{
+    await PasswordPolicyVerifier.VerifyAsync(app.Services);
     return;
 }
 

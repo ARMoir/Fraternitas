@@ -139,7 +139,7 @@ public static class AccountRequestEndpoints
             if (request is null) return InvalidLink();
             var token = WebUtility.HtmlEncode(csrf.GetAndStoreTokens(ctx).RequestToken ?? "");
             var error = ctx.Request.Query.ContainsKey("error")
-                ? "<p class='error' role='alert'>Choose matching, non-empty passwords and try again.</p>" : "";
+                ? "<p class='error' role='alert'>Choose matching passwords with at least 6 characters and one number.</p>" : "";
             return Html("Complete registration", $"""
                 <h1>Complete your registration</h1>
                 <p>Welcome, {WebUtility.HtmlEncode(request.DisplayName)}. Your account request has been approved.</p>
@@ -149,8 +149,9 @@ public static class AccountRequestEndpoints
                   <input type="hidden" name="code" value="{WebUtility.HtmlEncode(code)}">
                   <label>Your name<input name="name" maxlength="100" value="{WebUtility.HtmlEncode(request.DisplayName)}" required></label>
                   <label>Email<input type="email" value="{WebUtility.HtmlEncode(request.Email)}" readonly></label>
-                  <label>Password<input name="password" type="password" autocomplete="new-password" required></label>
-                  <label>Confirm password<input name="confirm" type="password" autocomplete="new-password" required></label>
+                  <p class="muted small">Use at least 6 characters and one number.</p>
+                  <label>Password<input name="password" type="password" autocomplete="new-password" minlength="6" pattern=".*[0-9].*" title="At least 6 characters and one number" required></label>
+                  <label>Confirm password<input name="confirm" type="password" autocomplete="new-password" minlength="6" pattern=".*[0-9].*" title="At least 6 characters and one number" required></label>
                   <button type="submit">Create account</button>
                 </form>
                 """);
@@ -168,7 +169,7 @@ public static class AccountRequestEndpoints
             await using var transaction = await db.Database.BeginTransactionAsync(ctx.RequestAborted);
             var request = await FindApprovedAsync(db, code, ctx.RequestAborted);
             if (request is null) return InvalidLink();
-            if (name.Length is < 1 or > 100 || string.IsNullOrEmpty(password) || password != form["confirm"].ToString())
+            if (name.Length is < 1 or > 100 || !PasswordPolicy.IsValid(password) || password != form["confirm"].ToString())
                 return Results.Redirect("/account/complete-registration?error=1&code=" + Uri.EscapeDataString(code));
             var member = new Member
             {
