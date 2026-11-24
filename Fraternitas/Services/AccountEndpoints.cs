@@ -107,8 +107,10 @@ public static class AccountEndpoints
             var token = WebUtility.HtmlEncode(csrf.GetAndStoreTokens(ctx).RequestToken ?? "");
             var returnUrl = WebUtility.HtmlEncode(ctx.Request.Query["returnUrl"].ToString());
             var error = ctx.Request.Query.ContainsKey("error") ? "<p class='error'>Invalid credentials or account temporarily locked.</p>" : "";
+            var resetMessage = ctx.Request.Query["reset"] == "1"
+                ? "<p class='success' role='status'>Password updated. Sign in with your new password.</p>" : "";
             var form = $"""
-                <h1>Welcome back</h1><p>Sign in to your Fraternitas group.</p>{error}
+                <h1>Welcome back</h1><p>Sign in to your Fraternitas group.</p>{error}{resetMessage}
                 <form method="post" action="/account/login">
                   <input type="hidden" name="__RequestVerificationToken" value="{token}">
                   <input type="hidden" name="returnUrl" value="{returnUrl}">
@@ -116,6 +118,7 @@ public static class AccountEndpoints
                   <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
                   <button type="submit">Sign in</button>
                 </form>
+                <p><a href="/account/forgot-password">Forgot your password?</a></p>
                 <p class="muted">New here? Ask a group administrator for an invitation link.</p>
                 """;
             return Results.Content(Page("Sign in", form), "text/html");
@@ -245,7 +248,7 @@ public static class AccountEndpoints
         }).RequireAuthorization();
     }
 
-    private static async Task<bool> ValidForm(HttpContext ctx, IAntiforgery csrf)
+    internal static async Task<bool> ValidForm(HttpContext ctx, IAntiforgery csrf)
     {
         try { await csrf.ValidateRequestAsync(ctx); return true; }
         catch (AntiforgeryValidationException) { return false; }
@@ -267,7 +270,7 @@ public static class AccountEndpoints
             : path;
     }
 
-    private static string Page(string title, string body)
+    internal static string Page(string title, string body)
     {
         const string template = """
             <!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -282,7 +285,7 @@ public static class AccountEndpoints
                 width:100%;padding:.85rem;border:1px solid #ccc;border-radius:8px;margin-top:.35rem;font:inherit}
               button{background:#244c40;color:white;border:0;padding:.85rem 1.3rem;border-radius:8px;
                 font-weight:700;cursor:pointer;font:inherit;width:100%}a{color:#244c40}
-              .muted{color:#69756d;font-size:.85rem}.error{color:#9b2424}
+              .muted{color:#69756d;font-size:.85rem}.error{color:#9b2424}.success{color:#246848;font-weight:600}
             </style></head><body><main><p style="font-weight:700;letter-spacing:.12em">✝ FRATERNITAS</p>
             __BODY__</main></body></html>
             """;
