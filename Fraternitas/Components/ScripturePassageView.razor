@@ -23,11 +23,9 @@ else
                 <div class="scripture-verse-entry">
                     <div class="scripture-verse-row">
                         <p class="scripture-verse"><sup>@verse.Number</sup>@verse.Text</p>
-                    </div>
-                    <details class="verse-pin-details">
-                        <summary class="verse-pin-button" aria-label="@($"Pin {VerseReference(verse.Number)}")">
-                            📌 Pin @VerseReference(verse.Number)
-                        </summary>
+                        <details class="verse-pin-details">
+                            <summary class="verse-pin-button" aria-label="@($"Pin {VerseReference(verse.Number)}")"
+                                     title="@($"Pin {VerseReference(verse.Number)}")">📌 Pin</summary>
                         <div class="verse-pin-editor">
                             <strong>Pin @VerseReference(verse.Number)</strong>
                             <p class="muted small">The verified Douay–Rheims text and reference are included automatically.</p>
@@ -60,7 +58,8 @@ else
                                 </div>
                             </form>
                         </div>
-                    </details>
+                        </details>
+                    </div>
                 </div>
             }
             <p class="scripture-credit">
