@@ -96,8 +96,12 @@ public static class CalendarEventEndpoints
                 return Results.BadRequest("Invalid or expired form token. Reload the editor.");
 
             var form = await context.Request.ReadFormAsync(context.RequestAborted);
+            var fromCalendar = form["calendarModal"].ToString() == "true";
+            var calendarUrl = CalendarReturnUrl(form);
             if (form["confirmDelete"].ToString() != "yes")
-                return Results.Redirect($"/events/{id}/edit?error=confirm");
+                return Results.Redirect(fromCalendar
+                    ? $"{calendarUrl}&edit={id:N}#edit-event"
+                    : $"/events/{id}/edit?error=confirm");
 
             await using var db = await factory.CreateDbContextAsync();
             var ev = await db.CalendarEvents
@@ -116,7 +120,9 @@ public static class CalendarEventEndpoints
 
             db.CalendarEvents.Remove(ev);
             await db.SaveChangesAsync(context.RequestAborted);
-            return Results.Redirect("/calendar?event=deleted");
+            return Results.Redirect(fromCalendar
+                ? $"{calendarUrl}&event=deleted#calendar-top"
+                : "/calendar?event=deleted");
         });
     }
 
