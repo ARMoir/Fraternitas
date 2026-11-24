@@ -78,10 +78,10 @@ delete_event() {
     "$base/calendar/events/$3/delete"
 }
 denied() {
-  # Identity's cookie handler may redirect a forbidden member to AccessDenied.
+  # The app uses /account/login for both authentication and access denial.
   if [ "$1" = 403 ]; then return; fi
   test "$1" = 302
-  grep -Eiq '^location: .*([Aa]ccess[Dd]enied|[Dd]enied)' "$RUNNER_TEMP/permission-headers"
+  grep -Eiq '^location: .*/account/login([?[:space:]]|$)' "$RUNNER_TEMP/permission-headers"
 }
 denied "$(update "$other" "$other_csrf" "Unauthorized edit" "$id")"
 denied "$(delete_event "$other" "$other_csrf" "$id")"
