@@ -28,6 +28,8 @@
            the server-side Blazor circuit has not connected or reconnects. *@
         <form method="post" action="/calendar/preferences/daily-prayer" class="calendar-preference-form">
             <AntiforgeryToken />
+            <input type="hidden" name="calendarView" value="@selectedView" />
+            <input type="hidden" name="calendarDate" value="@selectedDate.ToString("yyyy-MM-dd")" />
             <label class="calendar-toggle">
                 <input type="checkbox" name="showDailyPrayer" value="true"
                        checked="@showDailyPrayer" onchange="this.form.requestSubmit()" />
@@ -42,6 +44,15 @@
         <input type="hidden" name="calendarDate" value="@selectedDate.ToString("yyyy-MM-dd")" />
         <label class="calendar-toggle"><input type="checkbox" name="showUsHolidays" value="true" checked="@showUsHolidays" onchange="this.form.requestSubmit()" /> Show US holidays</label>
         <label class="calendar-toggle"><input type="checkbox" name="showCatholicHolidays" value="true" checked="@showCatholicHolidays" onchange="this.form.requestSubmit()" /> Show Catholic holidays &amp; saints</label>
+        <details class="calendar-category-filters">
+            <summary>Event types</summary>
+            <div class="calendar-preference-form">
+                @foreach (var category in UserPreferencesService.CalendarEventCategories)
+                {
+                    <label class="calendar-toggle"><input type="checkbox" name="showCategory" value="@category" checked="@(!hiddenCategories.Contains(category))" onchange="this.form.requestSubmit()" /> @category</label>
+                }
+            </div>
+        </details>
         <button class="action secondary compact" type="submit">Apply</button>
     </form>
     @if (showCatholicHolidays && catholicUnavailable)
@@ -533,7 +544,8 @@
             : $"{ev.StartLocal:h:mm tt} – {ev.EndLocal:h:mm tt} Eastern";
 
     private List<CalendarEvent> events = [];
-    private bool showDailyPrayer;
+    private bool showDailyPrayer = true;
+    private readonly HashSet<string> hiddenCategories = new(StringComparer.OrdinalIgnoreCase);
     private bool showUsHolidays = true;
     private bool showCatholicHolidays = true;
     private bool catholicUnavailable;
@@ -564,9 +576,8 @@
             }
         }
     }
-    private List<CalendarEvent> visibleEvents => showDailyPrayer
-        ? events
-        : events.Where(e => e.Category != "Prayer" || e.Title != "Daily prayer & Examen").ToList();
+    private List<CalendarEvent> visibleEvents => events.Where(e => !hiddenCategories.Contains(e.Category)
+        && (showDailyPrayer || e.Category != "Prayer" || e.Title != "Daily prayer & Examen")).ToList();
     private List<Reading> readings = [];
     private bool isAdmin;
     private bool canCreate;
@@ -581,7 +592,10 @@
         isAdmin = await Access.IsAdministratorAsync(state.User);
         currentUserId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         showDailyPrayer = await Preferences.GetBooleanAsync(
-            state.User, UserPreferencesService.CalendarShowDailyPrayer);
+            state.User, UserPreferencesService.CalendarShowDailyPrayer, true);
+        foreach (var category in UserPreferencesService.CalendarEventCategories)
+            if (!await Preferences.GetBooleanAsync(state.User, UserPreferencesService.CategoryPreference(category), true))
+                hiddenCategories.Add(category);
         showUsHolidays = await Preferences.GetBooleanAsync(state.User, UserPreferencesService.CalendarShowUsHolidays, true);
         showCatholicHolidays = await Preferences.GetBooleanAsync(state.User, UserPreferencesService.CalendarShowCatholicHolidays, true);
         await using var db = await DbFactory.CreateDbContextAsync();

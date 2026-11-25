@@ -17,6 +17,8 @@ public sealed class UserPreferencesService(IDbContextFactory<FraternityDb> dbFac
     public const string CalendarShowDailyPrayer = "calendar.showDailyPrayer";
     public const string CalendarShowUsHolidays = "calendar.showUsHolidays";
     public const string CalendarShowCatholicHolidays = "calendar.showCatholicHolidays";
+    public static readonly IReadOnlyList<string> CalendarEventCategories = Array.AsReadOnly(new[] { "Meeting", "Fasting", "Prayer", "Fellowship", "Scripture", "Other" });
+    public static string CategoryPreference(string category) => "calendar.showCategory." + category;
     private const string ClaimPrefix = "fraternitas.preference.";
 
     private static string CurrentUserId(ClaimsPrincipal user) =>
@@ -91,6 +93,9 @@ public static class UserPreferenceEndpoints
                 form["showUsHolidays"] == "true", defaultValue: true);
             await preferences.SetBooleanAsync(context.User, UserPreferencesService.CalendarShowCatholicHolidays,
                 form["showCatholicHolidays"] == "true", defaultValue: true);
+            foreach (var category in UserPreferencesService.CalendarEventCategories)
+                await preferences.SetBooleanAsync(context.User, UserPreferencesService.CategoryPreference(category),
+                    form["showCategory"].Contains(category), defaultValue: true);
             var view = form["calendarView"].ToString();
             if (view is not ("day" or "week" or "month")) view = "month";
             var date = DateTime.TryParseExact(form["calendarDate"].ToString(), "yyyy-MM-dd",
@@ -120,9 +125,14 @@ public static class UserPreferenceEndpoints
                 var enabled = form.TryGetValue("showDailyPrayer", out var value)
                     && string.Equals(value.ToString(), "true", StringComparison.OrdinalIgnoreCase);
                 await preferences.SetBooleanAsync(
-                    context.User, UserPreferencesService.CalendarShowDailyPrayer, enabled);
+                    context.User, UserPreferencesService.CalendarShowDailyPrayer, enabled, defaultValue: true);
 
-                return Results.LocalRedirect("/calendar");
+                var view = form["calendarView"].ToString();
+                if (view is not ("day" or "week" or "month")) view = "month";
+                var date = DateTime.TryParseExact(form["calendarDate"].ToString(), "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed)
+                    && parsed.Year is >= 2000 and <= 2100 ? parsed : GroupClock.Now.Date;
+                return Results.LocalRedirect($"/calendar?view={view}&date={date:yyyy-MM-dd}");
             }).RequireAuthorization();
     }
 }

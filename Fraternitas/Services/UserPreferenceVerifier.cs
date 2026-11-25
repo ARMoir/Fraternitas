@@ -49,34 +49,34 @@ public static class UserPreferenceVerifier
         {
             using var scope = services.CreateScope();
             return await scope.ServiceProvider.GetRequiredService<UserPreferencesService>()
-                .GetBooleanAsync(principal, UserPreferencesService.CalendarShowDailyPrayer);
+                .GetBooleanAsync(principal, UserPreferencesService.CalendarShowDailyPrayer, true);
         }
 
-        if (await ReadInFreshScopeAsync(firstPrincipal) || await ReadInFreshScopeAsync(secondPrincipal))
-            throw new InvalidOperationException("Calendar prayer must be hidden by default.");
+        if (!await ReadInFreshScopeAsync(firstPrincipal) || !await ReadInFreshScopeAsync(secondPrincipal))
+            throw new InvalidOperationException("Calendar prayer must be shown by default.");
 
         await using (var scope = services.CreateAsyncScope())
         {
             await scope.ServiceProvider.GetRequiredService<UserPreferencesService>()
-                .SetBooleanAsync(firstPrincipal, UserPreferencesService.CalendarShowDailyPrayer, true);
+                .SetBooleanAsync(firstPrincipal, UserPreferencesService.CalendarShowDailyPrayer, false, true);
         }
 
-        if (!await ReadInFreshScopeAsync(firstPrincipal))
-            throw new InvalidOperationException("Calendar preference did not persist after enabling.");
-        if (await ReadInFreshScopeAsync(secondPrincipal))
+        if (await ReadInFreshScopeAsync(firstPrincipal))
+            throw new InvalidOperationException("Calendar preference did not persist after disabling.");
+        if (!await ReadInFreshScopeAsync(secondPrincipal))
             throw new InvalidOperationException("Calendar preference leaked to a different user.");
 
         await using (var scope = services.CreateAsyncScope())
         {
             await scope.ServiceProvider.GetRequiredService<UserPreferencesService>()
-                .SetBooleanAsync(firstPrincipal, UserPreferencesService.CalendarShowDailyPrayer, false);
+                .SetBooleanAsync(firstPrincipal, UserPreferencesService.CalendarShowDailyPrayer, true, true);
         }
 
-        if (await ReadInFreshScopeAsync(firstPrincipal))
-            throw new InvalidOperationException("Calendar preference did not persist after disabling.");
+        if (!await ReadInFreshScopeAsync(firstPrincipal))
+            throw new InvalidOperationException("Calendar preference did not persist after enabling.");
 
         var prefs = setupScope.ServiceProvider.GetRequiredService<UserPreferencesService>();
-        foreach (var key in new[] { UserPreferencesService.CalendarShowUsHolidays, UserPreferencesService.CalendarShowCatholicHolidays })
+        foreach (var key in new[] { UserPreferencesService.CalendarShowUsHolidays, UserPreferencesService.CalendarShowCatholicHolidays }.Concat(UserPreferencesService.CalendarEventCategories.Select(UserPreferencesService.CategoryPreference)))
         {
             if (!await prefs.GetBooleanAsync(firstPrincipal, key, true)) throw new Exception("Holidays should default on.");
             await prefs.SetBooleanAsync(firstPrincipal, key, false, true);
@@ -86,6 +86,6 @@ public static class UserPreferenceVerifier
             if (!await prefs.GetBooleanAsync(firstPrincipal, key, true)) throw new Exception("Holiday preference not restored.");
         }
 
-        Console.WriteLine("Calendar preference verified: default off, saved on/off across scopes, isolated per member.");
+        Console.WriteLine("Calendar filters verified: all default on, saved opt-outs across scopes, isolated per member.");
     }
 }

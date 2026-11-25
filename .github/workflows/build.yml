@@ -181,7 +181,7 @@ jobs:
           response=$(curl -sS -o /dev/null -w '%{http_code}' \
             -b "$RUNNER_TEMP/cookies.txt" -c "$RUNNER_TEMP/cookies.txt" \
             --data-urlencode "__RequestVerificationToken=$csrf" \
-            --data-urlencode "showDailyPrayer=true" \
+            --data-urlencode "showDailyPrayer=false" \
             "http://127.0.0.1:5088/calendar/preferences/daily-prayer")
           test "$response" = "302"
           python3 - <<'PY'
@@ -190,7 +190,7 @@ jobs:
           count = con.execute("""
               SELECT COUNT(*) FROM AspNetUserClaims
               WHERE ClaimType='fraternitas.preference.calendar.showDailyPrayer'
-                AND ClaimValue='true'
+                AND ClaimValue='false'
           """).fetchone()[0]
           assert count == 1, f"Calendar preference POST did not persist: {count}"
           print("Calendar preference POST persisted for the authenticated account")
@@ -211,7 +211,7 @@ jobs:
           parser = CheckboxParser()
           with open(sys.argv[1], encoding="utf-8") as source:
               parser.feed(source.read())
-          assert parser.checked, "Saved daily prayer preference not rendered on revisit"
+          assert not parser.checked, "Saved daily prayer opt-out not rendered on revisit"
           print("Calendar preference restored from SQLite on page reload")
           PY
           # Native document upload must work without JavaScript or an interactive circuit.

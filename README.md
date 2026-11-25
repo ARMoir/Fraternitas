@@ -14,7 +14,7 @@ Designed to support prayer and fellowship without becoming another digital distr
 - All new registrations start as Member only; administrators can promote users after registration
 - Automatic password reset emails and administrator-generated recovery links, with manual fallback
 - Weekly home page calendar summary and day/week/month calendar with in-page event details and creation for all members and edit/delete modals for event owners and administrators
-- Persistent per-member daily prayer and examination of conscience visibility; five appointments per month cell, with a link to view more
+- Persistent per-member visibility filters for daily prayer, US and Catholic holidays, and each event category (all on by default); five appointments per month cell, with a link to view more
 - Eastern time meeting schedule, categories and per-event .ics downloads
 - Event details with scriptures, reading linkage, description and meeting link
 - Five seeded Joyful Mysteries, with the three Lectio Divina prompts
@@ -186,7 +186,7 @@ On the first startup after this update, Fraternitas fills the calendar in **both
 - **Monday gatherings, 8:00–9:00 PM Eastern**: Nov 23 (Annunciation, Luke 1:26–38), Nov 30 (Visitation, Luke 1:39–56), Dec 7 (Nativity, Luke 2:1–20), Dec 14 (Presentation, Luke 2:22–38), Dec 21 (Finding in the Temple, Luke 2:41–52).
 - **Wednesday fast until 4:00 PM Eastern + meatless Wednesdays**: Nov 25, Dec 2, 9, 16 and 23.
 - **Friday fast until 4:00 PM Eastern**: Nov 27, Dec 4, 11 and 18. Dec 25 (Christmas Day) is not included.
-- **Daily personal practices**: all-day reminders Nov 23–Dec 24 for 20 minutes of silent prayer, the daily Ignatian Examen, and the agreed sacrifice of unnecessary phone/TV time. Their timing is chosen by each member; the calendar has a toggle to show/hide these reminders, hidden by default to keep the month view readable.
+- **Daily personal practices**: all-day reminders Nov 23–Dec 24 for 20 minutes of silent prayer, the daily Ignatian Examen, and the agreed sacrifice of unnecessary phone/TV time. Their timing is chosen by each member; the calendar has a toggle to show/hide these reminders, shown by default, with a saved per-member option to hide them.
 
 Fasting guidance emphasizes **fasting until 4:00 PM Eastern**; the group's alternative is **two small meals and one normal meal**. Each meeting includes three Lectio Divina readings and reflection prompts, an opportunity to discuss the week and one decade of the Rosary. The recurring Zoom URL is left blank pending Ryan's link. The Christmas-season get-together has no confirmed date, so it is mentioned as a discussion item rather than placed on the calendar.
 
@@ -233,7 +233,7 @@ An integration test (`verify-scripture-pins`) uses an isolated SQLite database t
 
 US federal holidays (including actual and observed dates) are calculated locally. Catholic observances come from the open-source [Liturgical Calendar API](https://github.com/Liturgical-Calendar/LiturgicalCalendarAPI), using its US national civil-year calendar, including memorials, feasts and solemnities. Ordinary weekdays, ordinary-time Sundays and duplicate vigil Masses are omitted. Regional or diocesan differences may apply; consult your diocese for Mass obligations. Both overlays are read-only, default on and independently configurable per member. They appear only on the calendar, not in the database or home event list. Catholic results are cached in memory for 24 hours, with stale data retained for up to 30 days and a 10-minute retry delay on failure. An unavailable API never prevents access to group events or US holidays. No API key or database migration is required.
 
-Select a calendar appointment in day, week or month view to open its detail modal. All members can add events. Event creators and administrators can select **Edit event**, save changes or delete the event without leaving the calendar route. Events created before ownership tracking and seeded events can only be edited or deleted by administrators. The selected calendar view and date are retained. The home page queries the same SQLite records, so changes appear the next time the home page loads, if the event falls within its displayed week. Daily practice reminders are hidden by default and the calendar visibility preference persists per user.
+Select a calendar appointment in day, week or month view to open its detail modal. All members can add events. Event creators and administrators can select **Edit event**, save changes or delete the event without leaving the calendar route. Events created before ownership tracking and seeded events can only be edited or deleted by administrators. The selected calendar view and date are retained. The home page queries the same SQLite records, so changes appear the next time the home page loads, if the event falls within its displayed week. All calendar layers and event categories are visible by default. Members can independently hide daily practice reminders, US holidays, Catholic observances, and Meeting, Fasting, Prayer, Fellowship, Scripture or Other events. Filters affect only the calendar display, not stored events, permissions or the home summary. Preferences persist per account across devices and sessions.
 
 ## Build and test
 
