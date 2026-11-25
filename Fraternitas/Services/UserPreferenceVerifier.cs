@@ -75,6 +75,17 @@ public static class UserPreferenceVerifier
         if (await ReadInFreshScopeAsync(firstPrincipal))
             throw new InvalidOperationException("Calendar preference did not persist after disabling.");
 
+        var prefs = setupScope.ServiceProvider.GetRequiredService<UserPreferencesService>();
+        foreach (var key in new[] { UserPreferencesService.CalendarShowUsHolidays, UserPreferencesService.CalendarShowCatholicHolidays })
+        {
+            if (!await prefs.GetBooleanAsync(firstPrincipal, key, true)) throw new Exception("Holidays should default on.");
+            await prefs.SetBooleanAsync(firstPrincipal, key, false, true);
+            if (await prefs.GetBooleanAsync(firstPrincipal, key, true) || !await prefs.GetBooleanAsync(secondPrincipal, key, true))
+                throw new Exception("Holiday opt-out not isolated.");
+            await prefs.SetBooleanAsync(firstPrincipal, key, true, true);
+            if (!await prefs.GetBooleanAsync(firstPrincipal, key, true)) throw new Exception("Holiday preference not restored.");
+        }
+
         Console.WriteLine("Calendar preference verified: default off, saved on/off across scopes, isolated per member.");
     }
 }

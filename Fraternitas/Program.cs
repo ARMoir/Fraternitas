@@ -76,6 +76,15 @@ if (!builder.Environment.IsDevelopment())
     builder.Services.AddHttpsRedirection(options => options.HttpsPort = 443);
 
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("LiturgicalCalendar", client =>
+{
+    client.BaseAddress = new Uri("https://litcal.johnromanodorazio.com/api/v5/");
+    client.Timeout = TimeSpan.FromSeconds(5);
+    client.MaxResponseContentBufferSize = 4 * 1024 * 1024;
+    client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+    client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US");
+});
+builder.Services.AddSingleton<HolidayCalendarService>();
 builder.Services.AddHttpClient<FraternitasEmailService>(client =>
 {
     client.BaseAddress = new Uri("https://api.resend.com/");
@@ -126,6 +135,12 @@ if (args.Contains("verify-member-access", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("verify-password-policy", StringComparer.OrdinalIgnoreCase))
 {
     await PasswordPolicyVerifier.VerifyAsync(app.Services);
+    return;
+}
+
+if (args.Contains("verify-holiday-calendar", StringComparer.OrdinalIgnoreCase))
+{
+    HolidayCalendarVerifier.Verify();
     return;
 }
 

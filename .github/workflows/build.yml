@@ -44,6 +44,10 @@ jobs:
           set -euo pipefail
           export FRATERNITAS_DATA_DIR="$RUNNER_TEMP/member-access-test"
           dotnet run --no-build --no-launch-profile -c Release --project Fraternitas/Fraternitas.csproj -- verify-member-access
+      - name: Verify holiday date rules and Catholic API parsing
+        run: |
+          export FRATERNITAS_DATA_DIR="$RUNNER_TEMP/holiday-test"
+          dotnet run --no-build --no-launch-profile -c Release --project Fraternitas/Fraternitas.csproj -- verify-holiday-calendar
       - name: Verify per-user calendar preference persistence
         shell: bash
         run: |

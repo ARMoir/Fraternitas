@@ -231,6 +231,8 @@ The **Discussions** page and individual discussion threads include the full Cath
 An integration test (`verify-scripture-pins`) uses an isolated SQLite database to verify that a Scripture topic, an existing-thread reply, and an all-day event persist correctly, including non-admin calendar pin creation, recorded ownership and anonymous rejection.
 ## Calendar and home page
 
+US federal holidays (including actual and observed dates) are calculated locally. Catholic observances come from the open-source [Liturgical Calendar API](https://github.com/Liturgical-Calendar/LiturgicalCalendarAPI), using its US national civil-year calendar, including memorials, feasts and solemnities. Ordinary weekdays, ordinary-time Sundays and duplicate vigil Masses are omitted. Regional or diocesan differences may apply; consult your diocese for Mass obligations. Both overlays are read-only, default on and independently configurable per member. They appear only on the calendar, not in the database or home event list. Catholic results are cached in memory for 24 hours, with stale data retained for up to 30 days and a 10-minute retry delay on failure. An unavailable API never prevents access to group events or US holidays. No API key or database migration is required.
+
 Select a calendar appointment in day, week or month view to open its detail modal. All members can add events. Event creators and administrators can select **Edit event**, save changes or delete the event without leaving the calendar route. Events created before ownership tracking and seeded events can only be edited or deleted by administrators. The selected calendar view and date are retained. The home page queries the same SQLite records, so changes appear the next time the home page loads, if the event falls within its displayed week. Daily practice reminders are hidden by default and the calendar visibility preference persists per user.
 
 ## Build and test
@@ -246,7 +248,7 @@ For local verification, use a disposable data directory, not your production dat
 
 ```bash
 export FRATERNITAS_DATA_DIR="$(mktemp -d)"
-for check in verify-scripture verify-scripture-pins verify-member-access verify-user-preferences verify-password-reset-email verify-password-policy; do
+for check in verify-scripture verify-scripture-pins verify-member-access verify-user-preferences verify-password-reset-email verify-password-policy verify-holiday-calendar; do
   dotnet run --no-launch-profile --project Fraternitas/Fraternitas.csproj -- "$check" || break
 done
 ```

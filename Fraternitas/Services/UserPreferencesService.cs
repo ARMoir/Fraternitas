@@ -15,6 +15,8 @@ namespace Fraternitas.Services;
 public sealed class UserPreferencesService(IDbContextFactory<FraternityDb> dbFactory)
 {
     public const string CalendarShowDailyPrayer = "calendar.showDailyPrayer";
+    public const string CalendarShowUsHolidays = "calendar.showUsHolidays";
+    public const string CalendarShowCatholicHolidays = "calendar.showCatholicHolidays";
     private const string ClaimPrefix = "fraternitas.preference.";
 
     private static string CurrentUserId(ClaimsPrincipal user) =>
@@ -32,7 +34,7 @@ public sealed class UserPreferencesService(IDbContextFactory<FraternityDb> dbFac
         return saved is null ? defaultValue : string.Equals(saved, "true", StringComparison.OrdinalIgnoreCase);
     }
 
-    public async Task SetBooleanAsync(ClaimsPrincipal user, string key, bool value)
+    public async Task SetBooleanAsync(ClaimsPrincipal user, string key, bool value, bool defaultValue = false)
     {
         var userId = CurrentUserId(user);
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -40,7 +42,7 @@ public sealed class UserPreferencesService(IDbContextFactory<FraternityDb> dbFac
             .Where(c => c.UserId == userId && c.ClaimType == ClaimPrefix + key)
             .ToListAsync();
 
-        if (value)
+        if (value != defaultValue)
         {
             if (claims.Count == 0)
             {
@@ -48,19 +50,19 @@ public sealed class UserPreferencesService(IDbContextFactory<FraternityDb> dbFac
                 {
                     UserId = userId,
                     ClaimType = ClaimPrefix + key,
-                    ClaimValue = "true"
+                    ClaimValue = value ? "true" : "false"
                 });
             }
             else
             {
-                claims[0].ClaimValue = "true";
+                claims[0].ClaimValue = value ? "true" : "false";
                 if (claims.Count > 1)
                     db.UserClaims.RemoveRange(claims.Skip(1));
             }
         }
         else
         {
-            // No claim means false, preserving the original default for new users.
+            // No claim means the preference's default value.
             db.UserClaims.RemoveRange(claims);
         }
 
@@ -78,6 +80,25 @@ public static class UserPreferenceEndpoints
 {
     public static void MapUserPreferenceEndpoints(this WebApplication app)
     {
+        app.MapPost("/calendar/preferences/holidays", async (HttpContext context, IAntiforgery antiforgery,
+            UserPreferencesService preferences) =>
+        {
+            if (!context.Request.HasFormContentType) return Results.BadRequest();
+            try { await antiforgery.ValidateRequestAsync(context); }
+            catch (AntiforgeryValidationException) { return Results.BadRequest("Reload the calendar and try again."); }
+            var form = await context.Request.ReadFormAsync();
+            await preferences.SetBooleanAsync(context.User, UserPreferencesService.CalendarShowUsHolidays,
+                form["showUsHolidays"] == "true", defaultValue: true);
+            await preferences.SetBooleanAsync(context.User, UserPreferencesService.CalendarShowCatholicHolidays,
+                form["showCatholicHolidays"] == "true", defaultValue: true);
+            var view = form["calendarView"].ToString();
+            if (view is not ("day" or "week" or "month")) view = "month";
+            var date = DateTime.TryParseExact(form["calendarDate"].ToString(), "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed)
+                && parsed.Year is >= 2000 and <= 2100 ? parsed : GroupClock.Now.Date;
+            return Results.LocalRedirect($"/calendar?view={view}&date={date:yyyy-MM-dd}");
+        }).RequireAuthorization();
+
         app.MapPost("/calendar/preferences/daily-prayer",
             async (HttpContext context, IAntiforgery antiforgery,
                 UserPreferencesService preferences) =>

@@ -107,6 +107,13 @@ form[action="/documents/upload"] input[type=file]{width:min(100%,460px)}
 .frat-calendar-scripture{background:#5473a3}
 .frat-calendar-other{background:#687970}
 .frat-calendar-more{font-size:.76rem;color:#536b5c;text-decoration:underline}
+.holiday-preferences{margin:0 0 .75rem}
+.holiday-preferences .calendar-toggle{margin:0}
+.frat-observance{position:relative;z-index:1;display:block;border-radius:4px;padding:3px 5px;font-size:.76rem;line-height:1.35;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.frat-observance-us{background:#e5edf7;color:#254a79;border-left:3px solid #5480b7}
+.frat-observance-catholic{background:#f1e9f5;color:#633c77;border-left:3px solid #9471b5}
+.frat-calendar-week-day .frat-observance,.frat-calendar-single-day .frat-observance{white-space:normal;overflow-wrap:anywhere;margin:.25rem 0}
+.frat-calendar-single-day .frat-observance{display:flex;justify-content:space-between;flex-wrap:wrap;gap:.25rem;padding:.75rem;font-size:.94rem}
 .frat-calendar-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));min-width:680px;border-top:1px solid #dae1da;border-left:1px solid #dae1da}
 .frat-calendar-week-day{min-width:0;min-height:300px;padding:.7rem .4rem;border-right:1px solid #dae1da;border-bottom:1px solid #dae1da}
 .frat-calendar-week-day h3{font-size:.88rem;margin:0 0 .75rem}

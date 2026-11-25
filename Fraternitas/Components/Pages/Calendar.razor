@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject UserPreferencesService Preferences
 @inject MemberAccessService Access
+@inject HolidayCalendarService Holidays
 
 <PageTitle>Calendar | Fraternitas</PageTitle>
 <div class="page-head">
@@ -35,6 +36,22 @@
             <button class="action secondary compact" type="submit">Apply</button>
         </form>
     </div>
+    <form method="post" action="/calendar/preferences/holidays" class="calendar-preference-form holiday-preferences">
+        <AntiforgeryToken />
+        <input type="hidden" name="calendarView" value="@selectedView" />
+        <input type="hidden" name="calendarDate" value="@selectedDate.ToString("yyyy-MM-dd")" />
+        <label class="calendar-toggle"><input type="checkbox" name="showUsHolidays" value="true" checked="@showUsHolidays" onchange="this.form.requestSubmit()" /> Show US holidays</label>
+        <label class="calendar-toggle"><input type="checkbox" name="showCatholicHolidays" value="true" checked="@showCatholicHolidays" onchange="this.form.requestSubmit()" /> Show Catholic holidays &amp; saints</label>
+        <button class="action secondary compact" type="submit">Apply</button>
+    </form>
+    @if (showCatholicHolidays && catholicUnavailable)
+    {
+        <p class="muted small">Some Catholic observances are temporarily unavailable. Group events and US holidays are unaffected.</p>
+    }
+    @if (showCatholicHolidays && catholicStale)
+    {
+        <p class="muted small">Showing cached Catholic observances while the source is unavailable.</p>
+    }
     @if (canCreate)
     {
         <p class="calendar-slot-hint">Select an empty day or an hourly time slot to add an event.</p>
@@ -84,6 +101,14 @@
                                 <a class="@EventCssClass(ev)" href="@EventDetailsUrl(ev.Id)"
                                    title="@ev.Title">@ev.Title</a>
                             }
+                            @foreach (var holiday in ObservancesOn(day).Take(2))
+                            {
+                                <span class="@HolidayCss(holiday)" title="@HolidayTitle(holiday)">@holiday.Name</span>
+                            }
+                            @if (ObservancesOn(day).Count > 2)
+                            {
+                                <a class="frat-calendar-more" href="@CalendarUrl("day", day)">More observances</a>
+                            }
                             @if (dayEvents.Count > 5)
                             {
                                 <a class="frat-calendar-more" href="@CalendarUrl("day", day)">
@@ -109,7 +134,11 @@
                         <a class="@EventCssClass(ev)" href="@EventDetailsUrl(ev.Id)"
                            title="@ev.Title">@ev.Title</a>
                     }
-                    @if (dayEvents.Count == 0) { <p class="muted small">No events</p> }
+                    @foreach (var holiday in ObservancesOn(day))
+                    {
+                        <span class="@HolidayCss(holiday)" title="@HolidayTitle(holiday)">@holiday.Name</span>
+                    }
+                    @if (dayEvents.Count == 0 && ObservancesOn(day).Count == 0) { <p class="muted small">No events</p> }
                     @if (canCreate)
                     {
                         <div class="frat-calendar-slot-list" aria-label="@($"Time slots for {day:dddd, MMMM d}")">
@@ -131,7 +160,11 @@
     {
         <section class="frat-calendar-single-day">
             <h2>@selectedDate.ToString("dddd, MMMM d, yyyy")</h2>
-            @if (EventsOn(selectedDate).Count == 0)
+            @foreach (var holiday in ObservancesOn(selectedDate))
+            {
+                <div class="@HolidayCss(holiday)"><strong>@holiday.Name</strong><small>@HolidayTitle(holiday)</small></div>
+            }
+            @if (EventsOn(selectedDate).Count == 0 && ObservancesOn(selectedDate).Count == 0)
             {
                 <p class="muted">No events scheduled for this day.</p>
             }
@@ -501,6 +534,36 @@
 
     private List<CalendarEvent> events = [];
     private bool showDailyPrayer;
+    private bool showUsHolidays = true;
+    private bool showCatholicHolidays = true;
+    private bool catholicUnavailable;
+    private bool catholicStale;
+    private List<CalendarObservance> observances = [];
+    private List<CalendarObservance> ObservancesOn(DateTime day) =>
+        observances.Where(h => h.Date == day.Date).OrderBy(h => h.Kind == "us" ? 0 : 1).ToList();
+    private static string HolidayCss(CalendarObservance h) =>
+        h.Kind == "us" ? "frat-observance frat-observance-us" : "frat-observance frat-observance-catholic";
+    private static string HolidayTitle(CalendarObservance h) =>
+        h.Obligation ? h.Rank + " · Holy day of obligation (US calendar)" : h.Rank;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        observances = [];
+        catholicUnavailable = false;
+        catholicStale = false;
+        IEnumerable<DateTime> dates = selectedView switch { "month" => MonthDays, "week" => WeekDays, _ => new[] { selectedDate } };
+        foreach (var year in dates.Select(d => d.Year).Distinct())
+        {
+            if (showUsHolidays) observances.AddRange(HolidayCalendarService.UnitedStates(year));
+            if (showCatholicHolidays)
+            {
+                var result = await Holidays.CatholicAsync(year);
+                observances.AddRange(result.Days);
+                catholicUnavailable |= !result.Available;
+                catholicStale |= result.Stale;
+            }
+        }
+    }
     private List<CalendarEvent> visibleEvents => showDailyPrayer
         ? events
         : events.Where(e => e.Category != "Prayer" || e.Title != "Daily prayer & Examen").ToList();
@@ -519,6 +582,8 @@
         currentUserId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         showDailyPrayer = await Preferences.GetBooleanAsync(
             state.User, UserPreferencesService.CalendarShowDailyPrayer);
+        showUsHolidays = await Preferences.GetBooleanAsync(state.User, UserPreferencesService.CalendarShowUsHolidays, true);
+        showCatholicHolidays = await Preferences.GetBooleanAsync(state.User, UserPreferencesService.CalendarShowCatholicHolidays, true);
         await using var db = await DbFactory.CreateDbContextAsync();
         readings = await db.Readings.AsNoTracking().OrderBy(r => r.Week).ToListAsync();
         await ReloadEvents();
